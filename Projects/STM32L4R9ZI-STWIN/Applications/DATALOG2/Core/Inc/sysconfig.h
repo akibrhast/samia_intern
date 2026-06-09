@@ -31,8 +31,8 @@
 // *********************
 
 #define BOARD_ID           0x09
-#define BLE_FW_ID_DATALOG2 0x12
-#define USB_FW_ID_DATALOG2 0x12
+#define BLE_FW_ID_DATALOG2 0x13
+#define USB_FW_ID_DATALOG2 0x14
 
 // Other hardware configuration
 // ****************************

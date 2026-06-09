@@ -78,8 +78,8 @@
 #include "Mp23db01hp_Mic_PnPL.h"
 #include "Stts22h_Temp_PnPL.h"
 #include "H3lis331dl_Acc_PnPL.h"
-#include "Iis3dwb10is_Ext_Acc_PnPL.h"
-#include "Iis3dwb10is_Ext_Ispu_PnPL.h"
+#include "Iis3dwb10is_Acc_PnPL.h"
+#include "Iis3dwb10is_Ispu_PnPL.h"
 #include "Ilps28qsw_Press_PnPL.h"
 #include "Ism330is_Acc_PnPL.h"
 #include "Ism330is_Gyro_PnPL.h"
@@ -259,12 +259,12 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
     }
   }
 
-  sLIS2DU12Obj = LIS2DU12TaskAlloc(&MX_GPIO_ACC_INT2InitParams, &MX_GPIO_SPI_SEN_CS_AInitParams);
+  sLIS2DU12Obj = LIS2DU12TaskAlloc(&MX_GPIO_ACC_INT2InitParams, &MX_GPIO_SPI_SEN_CS_AInitParams, false);
   sLIS2MDLObj = LIS2MDLTaskAlloc(NULL, NULL);
-  sLPS22DFObj = LPS22DFTaskAlloc(NULL, NULL);
+  sLPS22DFObj = LPS22DFTaskAlloc(NULL, NULL, false);
   sMP23DB01HPObj = MP23DB01HPTaskAlloc(&MX_ADF1InitParams);
   sSTTS22HObj = STTS22HTaskAlloc(NULL, NULL, 0x71);
-  sLSM6DSV16XObj = LSM6DSV16XTaskAlloc(&MX_GPIO_IMU_INT1InitParams, NULL, &MX_GPIO_SPI_SEN_CS_GInitParams);
+  sLSM6DSV16XObj = LSM6DSV16XTaskAlloc(&MX_GPIO_IMU_INT1InitParams, NULL, &MX_GPIO_SPI_SEN_CS_GInitParams, false);
 
   if (ext_ism330is)
   {
@@ -272,16 +272,16 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (ext_lsm6dsv16bx)
   {
-    sLSM6DSV16BXObj = LSM6DSV16BXTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sLSM6DSV16BXObj = LSM6DSV16BXTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_lsm6dsv32x)
   {
-    sLSM6DSV32XObj = LSM6DSV32XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sLSM6DSV32XObj = LSM6DSV32XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_lsm6dsv80x)
   {
-    sLSM6DSV80XObj = LSM6DSV80XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
-    sLSM6DSV320XObj = LSM6DSV320XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sLSM6DSV80XObj = LSM6DSV80XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
+    sLSM6DSV320XObj = LSM6DSV320XTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_iis3dwb10is)
   {
@@ -294,7 +294,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (ext_ilps28qsw)
   {
-    sILPS28QSWObj = ILPS28QSWTaskAlloc(NULL, NULL);
+    sILPS28QSWObj = ILPS28QSWTaskAlloc(NULL, NULL, false);
   }
 
   /************ Add the task object to the context ************/
@@ -396,8 +396,8 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (sIIS3DWB10ISExtObj)
   {
-    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Ext_Acc_PnPLAlloc();
-    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ext_Ispu_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Acc_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ispu_PnPLAlloc();
   }
   if (sILPS28QSWObj)
   {
@@ -624,9 +624,9 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   }
   if (sIIS3DWB10ISExtObj)
   {
-    Iis3dwb10is_Ext_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
-    iis3dwb10is_ext_acc_set_enable(true, NULL);
-    Iis3dwb10is_Ext_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
+    Iis3dwb10is_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
+    iis3dwb10is_acc_set_enable(true, NULL);
+    Iis3dwb10is_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
 
     lis2du12_acc_set_enable(false, NULL);
     lis2mdl_mag_set_enable(false, NULL);

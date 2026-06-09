@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>DATALOG2-NUCLEO-H7A3ZI-Q</name>
+	<name>DATALOG2_IKS5A1-NUCLEO-H7A3ZI-Q</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -1020,6 +1020,11 @@
 			<name>eLooM_Components/SensorManager/Src/I2CBusIF.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I2CBusIF.c</locationURI>
+		</link>
+		<link>
+			<name>eLooM_Components/SensorManager/Src/I3CBusIF.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I3CBusIF.c</locationURI>
 		</link>
 		<link>
 			<name>eLooM_Components/SensorManager/Src/I2CBusTask.c</name>

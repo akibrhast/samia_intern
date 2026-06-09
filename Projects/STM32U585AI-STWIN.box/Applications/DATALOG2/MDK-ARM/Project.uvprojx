@@ -815,9 +815,9 @@
               <FilePath>..\PnPL\AppModel\Src\App_model_Iis2iclx_Mlc.c</FilePath>
             </File>
             <File>
-              <FileName>App_model_Iis3dwb10is_Ext_Acc.c</FileName>
+              <FileName>App_model_Iis3dwb10is_Acc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Acc.c</FilePath>
+              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Acc.c</FilePath>
             </File>
             <File>
               <FileName>App_model_Ilps28qsw_Press.c</FileName>
@@ -845,9 +845,9 @@
               <FilePath>..\PnPL\AppModel\Src\App_model_Ism6hg256x_Mlc.c</FilePath>
             </File>
             <File>
-              <FileName>App_model_Iis3dwb10is_Ext_Ispu.c</FileName>
+              <FileName>App_model_Iis3dwb10is_Ispu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Ispu.c</FilePath>
+              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ispu.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1005,9 +1005,9 @@
               <FilePath>..\PnPL\Components\Src\Iis2iclx_Mlc_PnPL.c</FilePath>
             </File>
             <File>
-              <FileName>Iis3dwb10is_Ext_Acc_PnPL.c</FileName>
+              <FileName>Iis3dwb10is_Acc_PnPL.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ext_Acc_PnPL.c</FilePath>
+              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Acc_PnPL.c</FilePath>
             </File>
             <File>
               <FileName>Ilps28qsw_Press_PnPL.c</FileName>
@@ -1035,9 +1035,9 @@
               <FilePath>..\PnPL\Components\Src\Ism6hg256x_Mlc_PnPL.c</FilePath>
             </File>
             <File>
-              <FileName>Iis3dwb10is_Ext_Ispu_PnPL.c</FileName>
+              <FileName>Iis3dwb10is_Ispu_PnPL.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ext_Ispu_PnPL.c</FilePath>
+              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ispu_PnPL.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1103,6 +1103,11 @@
               <FileName>ABusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusIF.c</FileName>
@@ -7083,9 +7088,9 @@
               <FilePath>..\PnPL\AppModel\Src\App_model_Iis2iclx_Mlc.c</FilePath>
             </File>
             <File>
-              <FileName>App_model_Iis3dwb10is_Ext_Acc.c</FileName>
+              <FileName>App_model_Iis3dwb10is_Acc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Acc.c</FilePath>
+              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Acc.c</FilePath>
             </File>
             <File>
               <FileName>App_model_Ilps28qsw_Press.c</FileName>
@@ -7113,9 +7118,9 @@
               <FilePath>..\PnPL\AppModel\Src\App_model_Ism6hg256x_Mlc.c</FilePath>
             </File>
             <File>
-              <FileName>App_model_Iis3dwb10is_Ext_Ispu.c</FileName>
+              <FileName>App_model_Iis3dwb10is_Ispu.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Ispu.c</FilePath>
+              <FilePath>..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ispu.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -7273,9 +7278,9 @@
               <FilePath>..\PnPL\Components\Src\Iis2iclx_Mlc_PnPL.c</FilePath>
             </File>
             <File>
-              <FileName>Iis3dwb10is_Ext_Acc_PnPL.c</FileName>
+              <FileName>Iis3dwb10is_Acc_PnPL.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ext_Acc_PnPL.c</FilePath>
+              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Acc_PnPL.c</FilePath>
             </File>
             <File>
               <FileName>Ilps28qsw_Press_PnPL.c</FileName>
@@ -7303,9 +7308,9 @@
               <FilePath>..\PnPL\Components\Src\Ism6hg256x_Mlc_PnPL.c</FilePath>
             </File>
             <File>
-              <FileName>Iis3dwb10is_Ext_Ispu_PnPL.c</FileName>
+              <FileName>Iis3dwb10is_Ispu_PnPL.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ext_Ispu_PnPL.c</FilePath>
+              <FilePath>..\PnPL\Components\Src\Iis3dwb10is_Ispu_PnPL.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -7371,6 +7376,11 @@
               <FileName>ABusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusIF.c</FileName>

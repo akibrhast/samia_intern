@@ -63,6 +63,10 @@
 #define LSM6DSV32X_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LSM6DSV32X_DYNAMIC_ADDR
+#define LSM6DSV32X_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                   SYS_DEBUGF3(SYS_DBG_LSM6DSV32X, level, message)
 
 #ifndef LSM6DSV32X_TASK_CFG_I2C_ADDRESS
@@ -382,96 +386,19 @@ static LSM6DSV32XTaskClass_t sTheClass =
   /* ACCELEROMETER DESCRIPTOR */
   {
     "lsm6dsv32x",
-    COM_TYPE_ACC /* , TODO: Remove
-    {
-      1.875,
-      7.5,
-      15,
-      30,
-      60,
-      120,
-      240,
-      480,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      4,
-      8,
-      16,
-      32,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "acc",
-    },
-    "g",
-    {
-      0,
-      1000,
-    } */
+    COM_TYPE_ACC
   },
 
   /* GYROSCOPE DESCRIPTOR */
   {
     "lsm6dsv32x",
-    COM_TYPE_GYRO /*, TODO: Remove
-    {
-      7.5,
-      15,
-      30,
-      60,
-      120,
-      240,
-      420,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      125,
-      250,
-      500,
-      1000,
-      2000,
-      4000,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "gyro",
-    },
-    "mdps",
-    {
-      0,
-      1000,
-    }*/
+    COM_TYPE_GYRO
   },
 
   /* MLC DESCRIPTOR */
   {
     "lsm6dsv32x",
-    COM_TYPE_MLC /* , TODO: Remove
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "mlc",
-    },
-    "out",
-    {
-      0,
-      1,
-    } */
+    COM_TYPE_MLC
   },
 
   /* class (PM_STATE, ExecuteStepFunc) map */
@@ -507,7 +434,8 @@ ISensorLL_t *LSM6DSV32XTaskGetSensorLLIF(LSM6DSV32XTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *LSM6DSV32XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *LSM6DSV32XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                    boolean_t i3c_flag)
 {
   LSM6DSV32XTask *p_new_obj = SysAlloc(sizeof(LSM6DSV32XTask));
 
@@ -528,6 +456,7 @@ AManagedTaskEx *LSM6DSV32XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
     strcpy(p_new_obj->gyro_sensor_status.p_name, sTheClass.gyro_class_descriptor.p_name);
@@ -538,9 +467,9 @@ AManagedTaskEx *LSM6DSV32XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
 }
 
 AManagedTaskEx *LSM6DSV32XTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                           const char *p_name)
+                                           boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV32XTask *p_new_obj = (LSM6DSV32XTask *) LSM6DSV32XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV32XTask *p_new_obj = (LSM6DSV32XTask *)LSM6DSV32XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
@@ -551,7 +480,7 @@ AManagedTaskEx *LSM6DSV32XTaskAllocSetName(const void *pIRQConfig, const void *p
 }
 
 AManagedTaskEx *LSM6DSV32XTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                          const void *pCSConfig)
+                                          const void *pCSConfig, boolean_t i3c_flag)
 {
   LSM6DSV32XTask *p_obj = (LSM6DSV32XTask *) p_mem_block;
 
@@ -572,15 +501,16 @@ AManagedTaskEx *LSM6DSV32XTaskStaticAlloc(void *p_mem_block, const void *pIRQCon
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *LSM6DSV32XTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                 const void *pCSConfig, const char *p_name)
+                                                 const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV32XTask *p_obj = (LSM6DSV32XTask *) LSM6DSV32XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV32XTask *p_obj = (LSM6DSV32XTask *) LSM6DSV32XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
@@ -685,6 +615,15 @@ sys_error_code_t LSM6DSV32XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(LSM6DSV32X_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LSM6DSV32X_ID, (uint8_t)(LSM6DSV32X_TASK_CFG_I2C_ADDRESS >> 1), LSM6DSV32X_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -860,8 +799,7 @@ sys_error_code_t LSM6DSV32XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       lsm6dsv32x_fifo_mode_set(p_sensor_drv, LSM6DSV32X_BYPASS_MODE);
       p_obj->samples_per_it = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -878,6 +816,8 @@ sys_error_code_t LSM6DSV32XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         LSM6DSV32XTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LSM6DSV32X: -> STATE1\r\n"));
   }
@@ -2012,14 +1952,8 @@ static sys_error_code_t LSM6DSV32XTaskSensorInit(LSM6DSV32XTask *_this)
   uint8_t mlc_int2;
   lsm6dsv32x_pin_int_route_t int1_route = {0};
 
-  lsm6dsv32x_reset_t rst;
-
   /* Restore default configuration */
-  ret_val = lsm6dsv32x_reset_set(p_sensor_drv, LSM6DSV32X_RESTORE_CTRL_REGS);
-  do
-  {
-    lsm6dsv32x_reset_get(p_sensor_drv, &rst);
-  } while (rst != LSM6DSV32X_READY);
+  ret_val = lsm6dsv32x_reboot(p_sensor_drv);
 
   /* Enable Block Data Update */
   ret_val = lsm6dsv32x_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
@@ -2321,11 +2255,11 @@ static sys_error_code_t LSM6DSV32XTaskSensorInit(LSM6DSV32XTask *_this)
   }
   else
   {
+    lsm6dsv32x_mlc_set(p_sensor_drv, LSM6DSV32X_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -3169,13 +3103,11 @@ static void LSM6DSV32XTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void LSM6DSV32XTaskMLCTimerCallbackFunction(ULONG param)
@@ -3185,13 +3117,11 @@ static void LSM6DSV32XTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

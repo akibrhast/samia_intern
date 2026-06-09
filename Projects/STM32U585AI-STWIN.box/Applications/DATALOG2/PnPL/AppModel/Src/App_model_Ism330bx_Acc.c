@@ -61,7 +61,7 @@ uint8_t ism330bx_acc_comp_init(void)
   addSensorToAppModel(id, &ism330bx_acc_model);
 
   ism330bx_acc_set_sensor_annotation("[EXTERN]\0", NULL);
-  ism330bx_acc_set_odr(pnpl_ism330bx_acc_odr_hz7680, NULL);
+  ism330bx_acc_set_odr(pnpl_ism330bx_acc_odr_hz3840, NULL);
   ism330bx_acc_set_fs(pnpl_ism330bx_acc_fs_g8, NULL);
   ism330bx_acc_set_enable(false, NULL);
 #if (HSD_USE_DUMMY_DATA == 1)
@@ -128,13 +128,9 @@ uint8_t ism330bx_acc_get_odr(pnpl_ism330bx_acc_odr_t *enum_id)
   {
     *enum_id = pnpl_ism330bx_acc_odr_hz1920;
   }
-  else if (odr < 3841.0f)
-  {
-    *enum_id = pnpl_ism330bx_acc_odr_hz3840;
-  }
   else
   {
-    *enum_id = pnpl_ism330bx_acc_odr_hz7680;
+    *enum_id = pnpl_ism330bx_acc_odr_hz3840;
   }
   return PNPL_NO_ERROR_CODE;
 }
@@ -339,9 +335,6 @@ uint8_t ism330bx_acc_set_odr(pnpl_ism330bx_acc_odr_t enum_id, char **response_me
       break;
     case pnpl_ism330bx_acc_odr_hz3840:
       value = 3840.0f;
-      break;
-    case pnpl_ism330bx_acc_odr_hz7680:
-      value = 7680.0f;
       break;
     default:
       if (response_message != NULL)

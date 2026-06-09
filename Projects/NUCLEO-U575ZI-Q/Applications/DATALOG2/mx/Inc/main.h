@@ -69,9 +69,6 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define USER_BUTTON_Pin GPIO_PIN_13
-#define USER_BUTTON_GPIO_Port GPIOC
-#define USER_BUTTON_EXTI_IRQn EXTI13_IRQn
 #define INT2_DLPC_Pin GPIO_PIN_1
 #define INT2_DLPC_GPIO_Port GPIOC
 #define INT2_DLPC_EXTI_IRQn EXTI1_IRQn
@@ -80,15 +77,9 @@ void Error_Handler(void);
 #define DRDY_MDC_Pin GPIO_PIN_3
 #define DRDY_MDC_GPIO_Port GPIOC
 #define DRDY_MDC_EXTI_IRQn EXTI3_IRQn
-#define INT1_DLPC_Pin GPIO_PIN_0
-#define INT1_DLPC_GPIO_Port GPIOB
-#define INT1_DLPC_EXTI_IRQn EXTI0_IRQn
 #define INT1_DHCX_Pin GPIO_PIN_9
 #define INT1_DHCX_GPIO_Port GPIOE
 #define INT1_DHCX_EXTI_IRQn EXTI9_IRQn
-#define INT2_DHCX_Pin GPIO_PIN_11
-#define INT2_DHCX_GPIO_Port GPIOE
-#define INT2_DHCX_EXTI_IRQn EXTI11_IRQn
 #define UCPD_FLT_Pin GPIO_PIN_14
 #define UCPD_FLT_GPIO_Port GPIOB
 #define UCPD1_CC2_Pin GPIO_PIN_15

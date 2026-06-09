@@ -63,6 +63,10 @@
 #define LSM6DSV16X_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LSM6DSV16X_DYNAMIC_ADDR
+#define LSM6DSV16X_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                   SYS_DEBUGF3(SYS_DBG_LSM6DSV16X, level, message)
 
 #ifndef LSM6DSV16X_TASK_CFG_I2C_ADDRESS
@@ -430,7 +434,8 @@ ISensorLL_t *LSM6DSV16XTaskGetSensorLLIF(LSM6DSV16XTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *LSM6DSV16XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *LSM6DSV16XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                    boolean_t i3c_flag)
 {
   LSM6DSV16XTask *p_new_obj = SysAlloc(sizeof(LSM6DSV16XTask));
 
@@ -451,6 +456,7 @@ AManagedTaskEx *LSM6DSV16XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
     strcpy(p_new_obj->gyro_sensor_status.p_name, sTheClass.gyro_class_descriptor.p_name);
@@ -461,9 +467,9 @@ AManagedTaskEx *LSM6DSV16XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
 }
 
 AManagedTaskEx *LSM6DSV16XTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                           const char *p_name)
+                                           boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV16XTask *p_new_obj = (LSM6DSV16XTask *) LSM6DSV16XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV16XTask *p_new_obj = (LSM6DSV16XTask *)LSM6DSV16XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
@@ -474,7 +480,7 @@ AManagedTaskEx *LSM6DSV16XTaskAllocSetName(const void *pIRQConfig, const void *p
 }
 
 AManagedTaskEx *LSM6DSV16XTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                          const void *pCSConfig)
+                                          const void *pCSConfig, boolean_t i3c_flag)
 {
   LSM6DSV16XTask *p_obj = (LSM6DSV16XTask *) p_mem_block;
 
@@ -495,15 +501,16 @@ AManagedTaskEx *LSM6DSV16XTaskStaticAlloc(void *p_mem_block, const void *pIRQCon
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *LSM6DSV16XTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                 const void *pCSConfig, const char *p_name)
+                                                 const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV16XTask *p_obj = (LSM6DSV16XTask *) LSM6DSV16XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV16XTask *p_obj = (LSM6DSV16XTask *) LSM6DSV16XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
@@ -608,6 +615,15 @@ sys_error_code_t LSM6DSV16XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(LSM6DSV16X_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LSM6DSV16X_ID, (uint8_t)(LSM6DSV16X_TASK_CFG_I2C_ADDRESS >> 1), LSM6DSV16X_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -774,8 +790,13 @@ sys_error_code_t LSM6DSV16XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
   {
     if (ActivePowerMode == E_POWER_MODE_SENSORS_ACTIVE)
     {
+      lsm6dsv16x_pin_int_route_t int1_route = {0};
+
       if (LSM6DSV16XTaskSensorIsActive(p_obj))
       {
+        /* Disable all INT1 routes first to avoid stale DRDY/FIFO interrupts while stopping. */
+        lsm6dsv16x_pin_int1_route_set(p_sensor_drv, &int1_route);
+
         /* Deactivate the sensor */
         lsm6dsv16x_xl_data_rate_set(p_sensor_drv, LSM6DSV16X_ODR_OFF);
         lsm6dsv16x_gy_data_rate_set(p_sensor_drv, LSM6DSV16X_ODR_OFF);
@@ -786,8 +807,7 @@ sys_error_code_t LSM6DSV16XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -804,6 +824,10 @@ sys_error_code_t LSM6DSV16XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         LSM6DSV16XTaskConfigureMLCPin(p_obj, TRUE);
       }
+
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
+
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LSM6DSV16X: -> STATE1\r\n"));
@@ -1936,14 +1960,13 @@ static sys_error_code_t LSM6DSV16XTaskSensorInit(LSM6DSV16XTask *_this)
   uint8_t mlc_int2;
   lsm6dsv16x_pin_int_route_t int1_route = {0};
 
-  lsm6dsv16x_reset_t rst;
+  if (_this->i3c_flag)
+  {
+    lsm6dsv16x_i3c_int_en_set(p_sensor_drv, PROPERTY_ENABLE);
+  }
 
   /* Restore default configuration */
-  ret_val = lsm6dsv16x_reset_set(p_sensor_drv, LSM6DSV16X_RESTORE_CTRL_REGS);
-  do
-  {
-    lsm6dsv16x_reset_get(p_sensor_drv, &rst);
-  } while (rst != LSM6DSV16X_READY);
+  ret_val = lsm6dsv16x_reboot(p_sensor_drv);
 
   /* Enable Block Data Update */
   ret_val = lsm6dsv16x_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
@@ -2238,11 +2261,11 @@ static sys_error_code_t LSM6DSV16XTaskSensorInit(LSM6DSV16XTask *_this)
   }
   else
   {
+    lsm6dsv16x_mlc_set(p_sensor_drv, LSM6DSV16X_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -3086,13 +3109,11 @@ static void LSM6DSV16XTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void LSM6DSV16XTaskMLCTimerCallbackFunction(ULONG param)
@@ -3102,13 +3123,11 @@ static void LSM6DSV16XTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

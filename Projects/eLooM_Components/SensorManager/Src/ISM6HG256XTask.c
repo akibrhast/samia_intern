@@ -65,6 +65,10 @@
 #define ISM6HG256X_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef ISM6HG256X_DYNAMIC_ADDR
+#define ISM6HG256X_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                   SYS_DEBUGF3(SYS_DBG_ISM6HG256X, level, message)
 
 #ifndef ISM6HG256X_TASK_CFG_I2C_ADDRESS
@@ -280,11 +284,13 @@ static float_t ISM6HG256X_FindMin(float_t Val1, float_t Val2, float_t Val3);
   */
 static float_t __attribute__((unused)) ISM6HG256X_FindMax(float_t Val1, float_t Val2, float_t Val3);
 
+#if ISM6HG256X_FIFO_ENABLED
 /**
   * Sort the sensors based on the sensor's ODRs
   */
 static sys_error_code_t ISM6HG256X_SensorSpeedSort(float_t ODR1, float_t ODR2, float_t ODR3, uint8_t *FastSensor,
                                                    uint8_t *MediumSensor, uint8_t *SlowSensor);
+#endif
 
 /* Inline function forward declaration */
 /***************************************/
@@ -435,126 +441,24 @@ static ISM6HG256XTaskClass_t sTheClass =
   {
     "ism6hg256x",
     COM_TYPE_ACC
-    /* TODO: Remove this
-    ,
-      {
-        1.875,
-        7.5,
-        15,
-        30,
-        60,
-        120,
-        240,
-        480,
-        960,
-        1920,
-        3840,
-        7680,
-        COM_END_OF_LIST_FLOAT,
-      },
-      {
-        2,
-        4,
-        8,
-        16,
-        COM_END_OF_LIST_FLOAT,
-      },
-      {
-        "acc",
-      },
-      "g",
-      {
-        0,
-        1000,
-      }*/
   },
 
   /* HIGH-G ACCELEROMETER DESCRIPTOR */
   {
     "ism6hg256x",
-    COM_TYPE_HG_ACC /* TODO: Remove this ,
-    {
-      480,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      32,
-      64,
-      128,
-      256,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "hgac",
-    },
-      "g",
-    {
-      0,
-      1000,
-    } */
+    COM_TYPE_HG_ACC
   },
 
   /* GYROSCOPE DESCRIPTOR */
   {
     "ism6hg256x",
-    COM_TYPE_GYRO /* todo: remove this,
-    {
-      7.5,
-      15,
-      30,
-      60,
-      120,
-      240,
-      420,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      125,
-      250,
-      500,
-      1000,
-      2000,
-      4000,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "gyro",
-    },
-    "mdps",
-    {
-      0,
-      1000,
-    } */
+    COM_TYPE_GYRO
   },
 
   /* MLC DESCRIPTOR */
   {
     "ism6hg256x",
-    COM_TYPE_MLC /* todo: remove this,
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "mlc",
-    },
-    "out",
-    {
-      0,
-      1,
-    }*/
+    COM_TYPE_MLC
   },
 
   /* class (PM_STATE, ExecuteStepFunc) map */
@@ -595,7 +499,8 @@ ISensorLL_t *ISM6HG256XTaskGetSensorLLIF(ISM6HG256XTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *ISM6HG256XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *ISM6HG256XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                    boolean_t i3c_flag)
 {
   ISM6HG256XTask *p_new_obj = SysAlloc(sizeof(ISM6HG256XTask));
 
@@ -618,6 +523,7 @@ AManagedTaskEx *ISM6HG256XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
     strcpy(p_new_obj->hg_acc_sensor_status.p_name, sTheClass.hg_acc_class_descriptor.p_name);
@@ -629,9 +535,9 @@ AManagedTaskEx *ISM6HG256XTaskAlloc(const void *pIRQConfig, const void *pMLCConf
 }
 
 AManagedTaskEx *ISM6HG256XTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                           const char *p_name)
+                                           boolean_t i3c_flag, const char *p_name)
 {
-  ISM6HG256XTask *p_new_obj = (ISM6HG256XTask *) ISM6HG256XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  ISM6HG256XTask *p_new_obj = (ISM6HG256XTask *)ISM6HG256XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
@@ -643,7 +549,7 @@ AManagedTaskEx *ISM6HG256XTaskAllocSetName(const void *pIRQConfig, const void *p
 }
 
 AManagedTaskEx *ISM6HG256XTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                          const void *pCSConfig)
+                                          const void *pCSConfig, boolean_t i3c_flag)
 {
   ISM6HG256XTask *p_obj = (ISM6HG256XTask *) p_mem_block;
 
@@ -666,15 +572,16 @@ AManagedTaskEx *ISM6HG256XTaskStaticAlloc(void *p_mem_block, const void *pIRQCon
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *ISM6HG256XTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                 const void *pCSConfig, const char *p_name)
+                                                 const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  ISM6HG256XTask *p_obj = (ISM6HG256XTask *) ISM6HG256XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  ISM6HG256XTask *p_obj = (ISM6HG256XTask *) ISM6HG256XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
@@ -793,6 +700,15 @@ sys_error_code_t ISM6HG256XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
   }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(ISM6HG256X_ID, (uint8_t)(ISM6HG256X_TASK_CFG_I2C_ADDRESS >> 1), ISM6HG256X_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
   else
   {
     p_obj->p_sensor_bus_if = I2CBusIFAlloc(ISM6HG256X_ID, ISM6HG256X_TASK_CFG_I2C_ADDRESS, 0);
@@ -903,6 +819,7 @@ sys_error_code_t ISM6HG256XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
   p_obj->gyro_samples_count = 0;
   p_obj->fifo_level = 0;
   p_obj->samples_per_it = 0;
+  p_obj->first_data_ready = 0;
   _this->m_pfPMState2FuncMap = sTheClass.p_pm_state2func_map;
 
   *pTaskCode = AMTExRun;
@@ -967,18 +884,22 @@ sys_error_code_t ISM6HG256XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
   {
     if (ActivePowerMode == E_POWER_MODE_SENSORS_ACTIVE)
     {
-      /* Deactivate the sensor */
-      ism6hg256x_xl_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
-      ism6hg256x_hg_xl_data_rate_set(p_sensor_drv, ISM6HG256X_HG_XL_ODR_OFF, 0);
-      ism6hg256x_gy_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
-      ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ISM6HG256X_GY_NOT_BATCHED);
-      ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ISM6HG256X_XL_NOT_BATCHED);
-      ism6hg256x_fifo_hg_xl_batch_set(p_sensor_drv, 0);
-      ism6hg256x_fifo_mode_set(p_sensor_drv, ISM6HG256X_BYPASS_MODE);
-      p_obj->samples_per_it = 0;
+      if (ISM6HG256XTaskSensorIsActive(p_obj))
+      {
+        /* Deactivate the sensor */
+        ism6hg256x_xl_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
+        ism6hg256x_hg_xl_data_rate_set(p_sensor_drv, ISM6HG256X_HG_XL_ODR_OFF, 0);
+        ism6hg256x_gy_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
+        ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ISM6HG256X_GY_NOT_BATCHED);
+        ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ISM6HG256X_XL_NOT_BATCHED);
+        ism6hg256x_fifo_hg_xl_batch_set(p_sensor_drv, 0);
+        ism6hg256x_fifo_mode_set(p_sensor_drv, ISM6HG256X_BYPASS_MODE);
+      }
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      p_obj->samples_per_it = 0;
+      p_obj->first_data_ready = 0;
+
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -995,6 +916,8 @@ sys_error_code_t ISM6HG256XTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         ISM6HG256XTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ISM6HG256X: -> STATE1\r\n"));
@@ -1867,8 +1790,6 @@ static sys_error_code_t ISM6HG256XTaskExecuteStepState1(AManagedTask *_this)
   return res;
 }
 
-#if 0
-// original function
 static sys_error_code_t ISM6HG256XTaskExecuteStepDatalog(AManagedTask *_this)
 {
   assert_param(_this != NULL);
@@ -1899,561 +1820,249 @@ static sys_error_code_t ISM6HG256XTaskExecuteStepDatalog(AManagedTask *_this)
         res = ISM6HG256XTaskSensorReadData(p_obj);
         if (!SYS_IS_ERROR_CODE(res))
         {
-#if ISM6HG256X_FIFO_ENABLED
-          if (p_obj->fifo_level != 0)
+          if (p_obj->first_data_ready >= p_obj->first_data_ready_threshold)
           {
+#if ISM6HG256X_FIFO_ENABLED
+            if (p_obj->fifo_level != 0)
+            {
 #endif
-            // notify the listeners...
-            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-            double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
-            p_obj->prev_timestamp = timestamp;
+              // notify the listeners...
+              double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
+              double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
+              p_obj->prev_timestamp = timestamp;
 
-            DataEvent_t evt_acc, evt_gyro;
+              DataEvent_t evt_hg_acc, evt_acc, evt_gyro;
 
 #if ISM6HG256X_FIFO_ENABLED
-            if ((p_obj->acc_sensor_status.is_active) && (p_obj->gyro_sensor_status.is_active)) /* Read both ACC and GYRO */
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
-
-              if (p_obj->acc_sensor_status.type.mems.odr > p_obj->gyro_sensor_status.type.mems.odr) /* Acc is faster than Gyro */
+              float_t hg_acc_odr = 0;
+              float_t acc_odr = 0;
+              float_t gyro_odr = 0;
+              bool SensorActive = false;
+              if (p_obj->hg_acc_sensor_status.is_active)
               {
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                /* update measuredODR */
+                p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->hg_acc_samples_count / (float_t) delta_timestamp;
+                /* used for sensor speed sort */
+                hg_acc_odr = p_obj->hg_acc_sensor_status.type.mems.odr;
+                SensorActive = true;
               }
-              else
-              {
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              }
-
-            }
-            else /* Only 1 out of 2 is active */
-            {
               if (p_obj->acc_sensor_status.is_active)
               {
                 /* update measuredODR */
                 p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                /* used for sensor speed sort */
+                acc_odr = p_obj->acc_sensor_status.type.mems.odr;
+                SensorActive = true;
               }
-              else if (p_obj->gyro_sensor_status.is_active)
+              if (p_obj->gyro_sensor_status.is_active)
               {
                 /* update measuredODR */
                 p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
+                /* used for sensor speed sort */
+                gyro_odr = p_obj->gyro_sensor_status.type.mems.odr;
+                SensorActive = true;
+              }
 
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+              if (true == SensorActive)
+              {
+                uint8_t FastSensor = 0;
+                uint8_t MediumSensor = 0;
+                uint8_t SlowSensor = 0;
 
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                /* Sort sensors by speed */
+                ISM6HG256X_SensorSpeedSort(hg_acc_odr, acc_odr, gyro_odr, &FastSensor, &MediumSensor, &SlowSensor);
+
+                if (p_obj->hg_acc_sensor_status.is_active)
+                {
+                  if (1 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  else if (1 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
+                }
+
+                if (p_obj->acc_sensor_status.is_active)
+                {
+                  if (2 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  else if (2 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
+                }
+
+                if (p_obj->gyro_sensor_status.is_active)
+                {
+                  if (3 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  else if (3 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+                }
+                if (p_obj->hg_acc_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc,
+                                     NULL);
+                }
+                if (p_obj->acc_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                }
+                if (p_obj->gyro_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                }
               }
               else
               {
                 res = SYS_INVALID_PARAMETER_ERROR_CODE;
               }
-            }
 #else
-            if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
-              DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-              IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-              p_obj->acc_drdy = 0;
-            }
-            if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
-              DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-              IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              p_obj->gyro_drdy = 0;
-            }
-#endif
-            SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("ISM6HG256X: ts = %f\r\n", (float_t)timestamp));
-#if ISM6HG256X_FIFO_ENABLED
-          }
-#endif
-        }
-//            if(p_obj->pIRQConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
-        break;
-      }
-
-      case SM_MESSAGE_ID_DATA_READY_MLC:
-      {
-//          if(p_obj->pMLCConfig == NULL)
-//          {
-//            if(TX_SUCCESS
-//                != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-//                                   AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-//            {
-//              return SYS_UNDEFINED_ERROR_CODE;
-//            }
-//          }
-        res = ISM6HG256XTaskSensorReadMLC(p_obj);
-        if (!SYS_IS_ERROR_CODE(res))
-        {
-          // notify the listeners...
-          double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-
-          if (p_obj->mlc_enable)
-          {
-            EMD_Init(&p_obj->data, p_obj->p_mlc_sensor_data_buff, E_EM_UINT8, E_EM_MODE_INTERLEAVED, 2, 1, 5);
-
-            DataEvent_t evt;
-
-            DataEventInit((IEvent *) &evt, p_obj->p_mlc_event_src, &p_obj->data, timestamp, p_obj->mlc_id);
-            IEventSrcSendEvent(p_obj->p_mlc_event_src, (IEvent *) &evt, NULL);
-          }
-          else
-          {
-            res = SYS_INVALID_PARAMETER_ERROR_CODE;
-          }
-
-        }
-//            if(p_obj->pMLCConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
-        break;
-      }
-
-      case SM_MESSAGE_ID_SENSOR_CMD:
-      {
-        switch (report.sensorMessage.nCmdID)
-        {
-          case SENSOR_CMD_ID_INIT:
-            res = ISM6HG256XTaskSensorInit(p_obj);
-            if (!SYS_IS_ERROR_CODE(res))
-            {
-              if (p_obj->acc_sensor_status.is_active == true || p_obj->gyro_sensor_status.is_active == true)
+              if (p_obj->hg_acc_sensor_status.is_active && p_obj->hg_acc_drdy)
               {
-                if (p_obj->pIRQConfig == NULL)
-                {
-                  if (TX_SUCCESS
-                      != tx_timer_change(&p_obj->read_timer, AMT_MS_TO_TICKS(p_obj->ism6hg256x_task_cfg_timer_period_ms),
-                                         AMT_MS_TO_TICKS(p_obj->ism6hg256x_task_cfg_timer_period_ms)))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                  if (TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                }
-                else
-                {
-                  ISM6HG256XTaskConfigureIrqPin(p_obj, FALSE);
-                }
-              }
-            }
-            if (!SYS_IS_ERROR_CODE(res))
-            {
-              if (p_obj->mlc_sensor_status.is_active == true)
-              {
-                if (p_obj->pMLCConfig == NULL)
-                {
-                  if (TX_SUCCESS
-                      != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-                                         AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                  if (TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                }
-                else
-                {
-                  ISM6HG256XTaskConfigureMLCPin(p_obj, FALSE);
-                }
-              }
-            }
-            break;
-          case SENSOR_CMD_ID_SET_ODR:
-            res = ISM6HG256XTaskSensorSetODR(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_SET_FS:
-            res = ISM6HG256XTaskSensorSetFS(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_SET_FIFO_WM:
-            res = ISM6HG256XTaskSensorSetFifoWM(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_ENABLE:
-            res = ISM6HG256XTaskSensorEnable(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_DISABLE:
-            res = ISM6HG256XTaskSensorDisable(p_obj, report);
-            break;
-          default:
-            /* unwanted report */
-            res = SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE;
-            SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE)
-            ;
+                /* update measuredODR */
+                p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->hg_acc_samples_count / (float_t)delta_timestamp;
 
-            SYS_DEBUGF(SYS_DBG_LEVEL_WARNING, ("ISM6HG256X: unexpected report in Datalog: %i\r\n", report.messageID));
-            break;
-        }
-        break;
-      }
-
-      default:
-        /* unwanted report */
-        res = SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE;
-        SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE)
-        ;
-
-        SYS_DEBUGF(SYS_DBG_LEVEL_WARNING, ("ISM6HG256X: unexpected report in Datalog: %i\r\n", report.messageID));
-        break;
-    }
-  }
-
-  return res;
-}
-#endif
-
-static sys_error_code_t ISM6HG256XTaskExecuteStepDatalog(AManagedTask *_this)
-{
-  assert_param(_this != NULL);
-  sys_error_code_t res = SYS_NO_ERROR_CODE;
-  ISM6HG256XTask *p_obj = (ISM6HG256XTask *) _this;
-  SMMessage report =
-  {
-    0
-  };
-
-  AMTExSetInactiveState((AManagedTaskEx *) _this, TRUE);
-  if (TX_SUCCESS == tx_queue_receive(&p_obj->in_queue, &report, TX_WAIT_FOREVER))
-  {
-    AMTExSetInactiveState((AManagedTaskEx *) _this, FALSE);
-
-    switch (report.messageID)
-    {
-      case SM_MESSAGE_ID_FORCE_STEP:
-      {
-        // do nothing. I need only to resume.
-        __NOP();
-        break;
-      }
-
-      case SM_MESSAGE_ID_DATA_READY:
-      {
-        SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("ISM6HG256X: new data.\r\n"));
-
-        res = ISM6HG256XTaskSensorReadData(p_obj);
-        if (!SYS_IS_ERROR_CODE(res))
-        {
-#if ISM6HG256X_FIFO_ENABLED
-          if (p_obj->fifo_level != 0)
-          {
-#endif
-            // notify the listeners...
-            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-            double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
-            p_obj->prev_timestamp = timestamp;
-
-            DataEvent_t evt_hg_acc, evt_acc, evt_gyro;
-            float_t hg_acc_odr = 0;
-            float_t acc_odr = 0;
-            float_t gyro_odr = 0;
-            bool SensorActive = false;
-
-#if ISM6HG256X_FIFO_ENABLED
-            if (p_obj->hg_acc_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->hg_acc_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              hg_acc_odr = p_obj->hg_acc_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-            if (p_obj->acc_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              acc_odr = p_obj->acc_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-            if (p_obj->gyro_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              gyro_odr = p_obj->gyro_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-
-            if (true == SensorActive)
-            {
-              uint8_t FastSensor = 0;
-              uint8_t MediumSensor = 0;
-              uint8_t SlowSensor = 0;
-
-              /* Sort sensors by speed */
-              ISM6HG256X_SensorSpeedSort(hg_acc_odr, acc_odr, gyro_odr, &FastSensor, &MediumSensor, &SlowSensor);
-
-              if (p_obj->hg_acc_sensor_status.is_active)
-              {
-                if (1 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
-                else if (1 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
+                EMD_Init(&p_obj->data_hg_acc, p_obj->p_hg_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->hg_acc_samples_count,
+                         3);
                 DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
-              }
 
-              if (p_obj->acc_sensor_status.is_active)
+                IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc, NULL);
+                p_obj->hg_acc_drdy = 0;
+              }
+              if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
               {
-                if (2 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
-                else if (2 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
+                /* update measuredODR */
+                p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
+
+                EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
                 DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-              }
 
-              if (p_obj->gyro_sensor_status.is_active)
+                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                p_obj->acc_drdy = 0;
+              }
+              if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
               {
-                if (3 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
-                else if (3 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
+                /* update measuredODR */
+                p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
+
+                EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
                 DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+
+                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                p_obj->gyro_drdy = 0;
               }
-              if (p_obj->hg_acc_sensor_status.is_active)
-              {
-                IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc,
-                                   NULL);
-              }
-              if (p_obj->acc_sensor_status.is_active) { IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL); }
-              if (p_obj->gyro_sensor_status.is_active) { IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL); }
-            }
-            else
-            {
-              res = SYS_INVALID_PARAMETER_ERROR_CODE;
-            }
-#else
-            if (p_obj->hg_acc_sensor_status.is_active && p_obj->hg_acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->hg_acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_hg_acc, p_obj->p_hg_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->hg_acc_samples_count,
-                       3);
-              DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
-
-              IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc, NULL);
-              p_obj->hg_acc_drdy = 0;
-            }
-            if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
-              DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-              IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-              p_obj->acc_drdy = 0;
-            }
-            if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
-              DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-              IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              p_obj->gyro_drdy = 0;
-            }
 #endif
-            SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("ISM6HG256X: ts = %f\r\n", (float_t)timestamp));
+              SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("ISM6HG256X: ts = %f\r\n", (float_t)timestamp));
 #if ISM6HG256X_FIFO_ENABLED
-          }
+            }
 #endif
+          }
+          else
+          {
+            p_obj->first_data_ready++;
+          }
         }
-//            if(p_obj->pIRQConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
         break;
       }
 
       case SM_MESSAGE_ID_DATA_READY_MLC:
       {
-//          if(p_obj->pMLCConfig == NULL)
-//          {
-//            if(TX_SUCCESS
-//                != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-//                                   AMT_MS_TO_TICKS(ISM6HG256X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-//            {
-//              return SYS_UNDEFINED_ERROR_CODE;
-//            }
-//          }
         res = ISM6HG256XTaskSensorReadMLC(p_obj);
         if (!SYS_IS_ERROR_CODE(res))
         {
@@ -2473,16 +2082,7 @@ static sys_error_code_t ISM6HG256XTaskExecuteStepDatalog(AManagedTask *_this)
           {
             res = SYS_INVALID_PARAMETER_ERROR_CODE;
           }
-
         }
-//            if(p_obj->pMLCConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
         break;
       }
 
@@ -2651,16 +2251,10 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
 
   uint8_t mlc_int1;
   uint8_t mlc_int2;
-  ism6hg256x_pin_int_route_t int1_route = {0};
-
-  ism6hg256x_reset_t rst;
+  ism6hg256x_pin_int1_route_t int1_route = {0};
 
   /* Restore default configuration */
-  ret_val = ism6hg256x_reset_set(p_sensor_drv, ISM6HG256X_RESTORE_CTRL_REGS);
-  do
-  {
-    ism6hg256x_reset_get(p_sensor_drv, &rst);
-  } while (rst != ISM6HG256X_READY);
+  ret_val = ism6hg256x_reboot(p_sensor_drv);
 
   /* Enable Block Data Update */
   ret_val = ism6hg256x_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
@@ -2881,24 +2475,24 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
 
   if (_this->acc_sensor_status.is_active)
   {
-    ism6hg256x_xl_data_rate_set(p_sensor_drv, ism6hg256x_xl_data_rate);
+    ism6hg256x_xl_setup(p_sensor_drv, ism6hg256x_xl_data_rate, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
     ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ism6hg256x_fifo_xl_batch);
   }
   else
   {
-    ism6hg256x_xl_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+    ism6hg256x_xl_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
     ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ISM6HG256X_XL_NOT_BATCHED);
     _this->acc_sensor_status.is_active = false;
   }
 
   if (_this->gyro_sensor_status.is_active)
   {
-    ism6hg256x_gy_data_rate_set(p_sensor_drv, ism6hg256x_gy_data_rate);
+    ism6hg256x_gy_setup(p_sensor_drv, ism6hg256x_gy_data_rate, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
     ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ism6hg256x_fifo_gy_batch);
   }
   else
   {
-    ism6hg256x_gy_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+    ism6hg256x_gy_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
     ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ISM6HG256X_GY_NOT_BATCHED);
     _this->gyro_sensor_status.is_active = false;
   }
@@ -2971,6 +2565,7 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
   ism6hg256x_fifo_mode_set(p_sensor_drv, ISM6HG256X_STREAM_MODE);
 
 #else
+  ism6hg256x_pin_int_route_hg_t int1_route_hg = {0};
 
   uint8_t buff[6];
   ism6hg256x_read_reg(p_sensor_drv, ISM6HG256X_OUTX_L_A, &buff[0], 6);
@@ -2991,7 +2586,7 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
     {
       if (_this->hg_acc_sensor_status.is_active)
       {
-        int1_route.drdy_hg_xl = PROPERTY_ENABLE;
+        int1_route_hg.drdy_hg_xl = PROPERTY_ENABLE;
       }
       if (_this->acc_sensor_status.is_active)
       {
@@ -3005,11 +2600,12 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
   }
   else
   {
-    int1_route.drdy_hg_xl = PROPERTY_DISABLE;
+    int1_route_hg.drdy_hg_xl = PROPERTY_DISABLE;
     int1_route.drdy_xl = PROPERTY_DISABLE;
     int1_route.drdy_g = PROPERTY_DISABLE;
   }
   ism6hg256x_pin_int1_route_set(p_sensor_drv, &int1_route);
+  ism6hg256x_pin_int1_route_hg_set(p_sensor_drv, &int1_route_hg);
 
 #endif /* ISM6HG256X_FIFO_ENABLED */
 
@@ -3031,11 +2627,11 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
   }
   else
   {
+    ism6hg256x_mlc_set(p_sensor_drv, ISM6HG256X_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -3066,6 +2662,16 @@ static sys_error_code_t ISM6HG256XTaskSensorInit(ISM6HG256XTask *_this)
   _this->ism6hg256x_task_cfg_timer_period_ms = (uint16_t)(1000.0f / _this->ism6hg256x_task_cfg_timer_period_ms);
 #endif
 
+  if (_this->hg_acc_sensor_status.type.mems.odr > 1920.0f || _this->acc_sensor_status.type.mems.odr > 1920.0f
+      || _this->gyro_sensor_status.type.mems.odr > 1920.0f)
+  {
+    _this->first_data_ready_threshold = 27;
+  }
+  else
+  {
+    _this->first_data_ready_threshold = 4;
+  }
+
   return res;
 }
 
@@ -3074,9 +2680,9 @@ static sys_error_code_t ISM6HG256XTaskSensorReadData(ISM6HG256XTask *_this)
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
-  uint16_t samples_per_it = _this->samples_per_it;
 
 #if ISM6HG256X_FIFO_ENABLED
+  uint16_t samples_per_it = _this->samples_per_it;
   uint8_t reg[2];
   uint16_t i;
 
@@ -3427,7 +3033,7 @@ static sys_error_code_t ISM6HG256XTaskSensorSetODR(ISM6HG256XTask *_this, SMMess
   {
     if (odr < 1.0f)
     {
-      ism6hg256x_xl_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+      ism6hg256x_xl_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
       /* Do not update the model in case of odr = 0 */
       odr = _this->acc_sensor_status.type.mems.odr;
     }
@@ -3497,7 +3103,7 @@ static sys_error_code_t ISM6HG256XTaskSensorSetODR(ISM6HG256XTask *_this, SMMess
   {
     if (odr < 1.0f)
     {
-      ism6hg256x_gy_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+      ism6hg256x_gy_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
       /* Do not update the model in case of odr = 0 */
       odr = _this->gyro_sensor_status.type.mems.odr;
     }
@@ -3612,7 +3218,6 @@ static sys_error_code_t ISM6HG256XTaskSensorSetFS(ISM6HG256XTask *_this, SMMessa
       ism6hg256x_hg_xl_full_scale_set(p_sensor_drv, ISM6HG256X_256g);
       fs = 256.0f;
     }
-
 
     if (!SYS_IS_ERROR_CODE(res))
     {
@@ -3806,7 +3411,7 @@ static sys_error_code_t ISM6HG256XTaskSensorDisable(ISM6HG256XTask *_this, SMMes
   else if (id == _this->acc_id)
   {
     _this->acc_sensor_status.is_active = FALSE;
-    ism6hg256x_xl_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+    ism6hg256x_xl_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
 
     /* Changing sensor configuration must disable MLC sensor: MLC can work properly only when setup from UCF */
     _this->mlc_enable = FALSE;
@@ -3815,7 +3420,7 @@ static sys_error_code_t ISM6HG256XTaskSensorDisable(ISM6HG256XTask *_this, SMMes
   else if (id == _this->gyro_id)
   {
     _this->gyro_sensor_status.is_active = FALSE;
-    ism6hg256x_gy_data_rate_set(p_sensor_drv, ISM6HG256X_ODR_OFF);
+    ism6hg256x_gy_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
 
     /* Changing sensor configuration must disable MLC sensor: MLC can work properly only when setup from UCF */
     _this->mlc_enable = FALSE;
@@ -3847,19 +3452,12 @@ static sys_error_code_t ISM6HG256XTaskEnterLowPowerMode(const ISM6HG256XTask *_t
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
 
-  ism6hg256x_hg_xl_data_rate_t ism6hg256x_hg_xl_data_rate = ISM6HG256X_HG_XL_ODR_OFF;
-  uint8_t ism6hg256x_fifo_hg_xl_batch = 0;
-  ism6hg256x_data_rate_t ism6hg256x_xl_data_rate = ISM6HG256X_ODR_OFF;
-  ism6hg256x_fifo_xl_batch_t ism6hg256x_fifo_xl_batch = ISM6HG256X_XL_NOT_BATCHED;
-  ism6hg256x_data_rate_t ism6hg256x_gy_data_rate = ISM6HG256X_ODR_OFF;
-  ism6hg256x_fifo_gy_batch_t ism6hg256x_fifo_gy_batch = ISM6HG256X_GY_NOT_BATCHED;
-
-  ism6hg256x_hg_xl_data_rate_set(p_sensor_drv, ism6hg256x_hg_xl_data_rate, 0);
-  ism6hg256x_fifo_hg_xl_batch_set(p_sensor_drv, ism6hg256x_fifo_hg_xl_batch);
-  ism6hg256x_xl_data_rate_set(p_sensor_drv, ism6hg256x_xl_data_rate);
-  ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ism6hg256x_fifo_xl_batch);
-  ism6hg256x_gy_data_rate_set(p_sensor_drv, ism6hg256x_gy_data_rate);
-  ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ism6hg256x_fifo_gy_batch);
+  ism6hg256x_hg_xl_data_rate_set(p_sensor_drv, ISM6HG256X_HG_XL_ODR_OFF, 0);
+  ism6hg256x_fifo_hg_xl_batch_set(p_sensor_drv, 0);
+  ism6hg256x_xl_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_XL_HIGH_PERFORMANCE_MD);
+  ism6hg256x_fifo_xl_batch_set(p_sensor_drv, ISM6HG256X_XL_NOT_BATCHED);
+  ism6hg256x_gy_setup(p_sensor_drv, ISM6HG256X_ODR_OFF, ISM6HG256X_GY_HIGH_PERFORMANCE_MD);
+  ism6hg256x_fifo_gy_batch_set(p_sensor_drv, ISM6HG256X_GY_NOT_BATCHED);
 
   return res;
 }
@@ -3967,13 +3565,11 @@ static void ISM6HG256XTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void ISM6HG256XTaskMLCTimerCallbackFunction(ULONG param)
@@ -3983,13 +3579,11 @@ static void ISM6HG256XTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -4352,6 +3946,7 @@ static float_t ISM6HG256X_FindMin(float_t Val1,
   return Min;
 }
 
+#if ISM6HG256X_FIFO_ENABLED
 static sys_error_code_t ISM6HG256X_SensorSpeedSort(float_t ODR1,
                                                    float_t ODR2,
                                                    float_t ODR3,
@@ -4406,3 +4001,4 @@ static sys_error_code_t ISM6HG256X_SensorSpeedSort(float_t ODR1,
   }
   return res;
 }
+#endif /* ISM6HG256X_FIFO_ENABLED */

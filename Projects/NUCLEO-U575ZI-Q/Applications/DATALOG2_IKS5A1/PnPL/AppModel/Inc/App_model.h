@@ -76,8 +76,8 @@ extern "C" {
 #include "App_model_Ism6hg256x_H_Acc.h"
 #include "App_model_Ism6hg256x_Gyro.h"
 #include "App_model_Ism6hg256x_Mlc.h"
-#include "App_model_Iis3dwb10is_Ext_Acc.h"
-#include "App_model_Iis3dwb10is_Ext_Ispu.h"
+#include "App_model_Iis3dwb10is_Acc.h"
+#include "App_model_Iis3dwb10is_Ispu.h"
 #include "App_model_Automode.h"
 #include "App_model_Log_Controller.h"
 #include "App_model_Tags_Info.h"
@@ -106,7 +106,7 @@ extern "C" {
 #define FORMAT_LEN 10U
 
 #define FW_VERSION_MAJOR    "3"
-#define FW_VERSION_MINOR    "2"
+#define FW_VERSION_MINOR    "3"
 #define FW_VERSION_PATCH    "0"
 typedef struct _StreamParams_t
 {

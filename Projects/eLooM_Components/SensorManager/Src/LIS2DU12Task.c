@@ -56,6 +56,10 @@
 #define LIS2DU12_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LIS2DU12_DYNAMIC_ADDR
+#define LIS2DU12_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                 SYS_DEBUGF3(SYS_DBG_LIS2DU12, level, message)
 
 #ifndef LIS2DU12_TASK_CFG_I2C_ADDRESS
@@ -277,7 +281,7 @@ ISourceObservable *LIS2DU12TaskGetAccSensorIF(LIS2DU12Task *_this)
   return (ISourceObservable *) & (_this->sensor_if);
 }
 
-AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag)
 {
   LIS2DU12Task *p_new_obj = SysAlloc(sizeof(LIS2DU12Task));
 
@@ -292,6 +296,7 @@ AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig)
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->sensor_status.p_name, sTheClass.class_descriptor.p_name);
   }
@@ -299,9 +304,10 @@ AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig)
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name)
+AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                         const char *p_name)
 {
-  LIS2DU12Task *p_new_obj = (LIS2DU12Task *)LIS2DU12TaskAlloc(pIRQConfig, pCSConfig);
+  LIS2DU12Task *p_new_obj = (LIS2DU12Task *)LIS2DU12TaskAlloc(pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->sensor_status.p_name, p_name);
@@ -309,7 +315,8 @@ AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCS
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                        boolean_t i3c_flag)
 {
   LIS2DU12Task *p_obj = (LIS2DU12Task *)p_mem_block;
 
@@ -325,15 +332,16 @@ AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfi
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *)p_obj;
 }
 
 AManagedTaskEx *LIS2DU12TaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                               const char *p_name)
+                                               boolean_t i3c_flag, const char *p_name)
 {
-  LIS2DU12Task *p_obj = (LIS2DU12Task *)LIS2DU12TaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig);
+  LIS2DU12Task *p_obj = (LIS2DU12Task *)LIS2DU12TaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->sensor_status.p_name, p_name);
@@ -414,6 +422,15 @@ sys_error_code_t LIS2DU12Task_vtblOnCreateTask(AManagedTask *_this, tx_entry_fun
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(LIS2DU12_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LIS2DU12_ID, (uint8_t)(LIS2DU12_TASK_CFG_I2C_ADDRESS >> 1), LIS2DU12_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -547,8 +564,7 @@ sys_error_code_t LIS2DU12Task_vtblDoEnterPowerMode(AManagedTask *_this, const EP
         lis2du12_mode_set(p_sensor_drv, &mode);
       }
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -557,6 +573,8 @@ sys_error_code_t LIS2DU12Task_vtblDoEnterPowerMode(AManagedTask *_this, const EP
       {
         LIS2DU12TaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LIS2DU12: -> STATE1\r\n"));
@@ -1700,13 +1718,11 @@ static void LIS2DU12TaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

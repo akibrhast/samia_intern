@@ -63,7 +63,7 @@ sys_error_code_t UCFP_LoadCompressedUcf(SUcfProtocol_t *_this, const char *p_ucf
 
       uint16_t ms = (uint16_t) strtol(ucf_data, NULL, 16);
 
-      tx_thread_sleep(ms);
+      tx_thread_sleep(ms + 1U); /* Add 1 tick to be sure to wait at least the required time */
 
       ucf_data[2] = '\0'; /* put back termination character for write commands */
     }
@@ -127,7 +127,7 @@ sys_error_code_t UCFP_LoadUcfHeader(SUcfProtocol_t *_this, const ucf_line_ext_t 
         }
         break;
       case MEMS_UCF_OP_DELAY:
-        tx_thread_sleep(p_ucf[i].data);
+        tx_thread_sleep(p_ucf[i].data + 1U); /* Add 1 tick to be sure to wait at least the required time */
         break;
       case MEMS_UCF_OP_READ:
       case MEMS_UCF_OP_POLL_SET:

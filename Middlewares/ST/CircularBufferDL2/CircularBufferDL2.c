@@ -74,57 +74,56 @@ uint32_t CBDL2_FillCurrentItem(CircularBufferDL2 *_this, uint8_t ch_number, uint
 
   uint16_t res = SYS_NO_ERROR_CODE;
   CircularBuffer *cb = &_this->cb;
-  CBItem *cb_item = _this->p_current_item;
   uint32_t cb_item_size = CB_GetItemSize(cb);
   uint32_t src_idx = 0;
-  uint32_t dst_idx;
-  uint8_t *p_dst;
+  uint32_t remaining_size = size;
   *p_ready = false;
 
-  if(cb_item == NULL)
+  while(remaining_size > 0U)
   {
-    /* Get a new item and set the header */
-    if(GetNewItem(_this, cb, cb_item_size, ch_number) != SYS_NO_ERROR_CODE)
+    CBItem *cb_item = _this->p_current_item;
+    uint32_t dst_idx;
+    uint32_t available_size;
+    uint32_t copy_size;
+    uint8_t *p_dst;
+
+    if(cb_item == NULL)
     {
-      return SYS_CB_NO_READY_ITEM_ERROR_CODE;
+      /* Get a new item and set the header */
+      if(GetNewItem(_this, cb, cb_item_size, ch_number) != SYS_NO_ERROR_CODE)
+      {
+        _this->byte_counter += remaining_size;
+        return SYS_CB_NO_READY_ITEM_ERROR_CODE;
+      }
+      cb_item = _this->p_current_item;
     }
-  }
-  cb_item = _this->p_current_item;
-  p_dst = (uint8_t*) CB_GetItemData(cb_item);
-  dst_idx = _this->item_idx;
 
-  /* if there is enough space left in the item use memcpy */
-  uint32_t size_after_copy = dst_idx + size;
-
-  if(size_after_copy < cb_item_size) /* data to be copied won't exceed the size of the item */
-  {
-    (void) memcpy(&p_dst[dst_idx], p_buf, size);
-    dst_idx += size;
-  }
-  else /* bytewise copy */
-  {
-    uint32_t partial_size = cb_item_size - dst_idx;
-    (void) memcpy(&p_dst[dst_idx], p_buf, partial_size);
-    src_idx += partial_size;
-
-    /* Current item is full, set as ready so that it can be consumed */
-    (void) CB_SetItemReady(cb, cb_item);
-    *p_ready = true;
-
-    /* Get a new item and set the header */
-    if(GetNewItem(_this, cb, cb_item_size, ch_number) != SYS_NO_ERROR_CODE)
-    {
-      return SYS_CB_NO_READY_ITEM_ERROR_CODE;
-    }
-    cb_item = _this->p_current_item;
     p_dst = (uint8_t*) CB_GetItemData(cb_item);
     dst_idx = _this->item_idx;
+    available_size = cb_item_size - dst_idx;
+    copy_size = (remaining_size <= available_size) ? remaining_size : available_size;
 
-    partial_size = size - partial_size;
-    (void) memcpy(&p_dst[dst_idx], &p_buf[src_idx], partial_size);
-    dst_idx += partial_size;
+    _this->byte_counter += copy_size;
+
+    (void) memcpy(&p_dst[dst_idx], &p_buf[src_idx], copy_size);
+    dst_idx += copy_size;
+    src_idx += copy_size;
+    remaining_size -= copy_size;
+
+    if(dst_idx == cb_item_size)
+    {
+      /* Current item is full, set as ready so that it can be consumed */
+      (void) CB_SetItemReady(cb, cb_item);
+      *p_ready = true;
+      _this->p_current_item = NULL;
+      _this->item_idx = 0;
+    }
+    else
+    {
+      _this->item_idx = dst_idx;
+    }
   }
-  _this->item_idx = dst_idx;
+
   return res;
 }
 
@@ -153,7 +152,7 @@ static uint16_t GetNewItem(CircularBufferDL2 *_this, CircularBuffer *cb, uint32_
   {
     uint8_t *p_dst;
     p_dst = (uint8_t*) CB_GetItemData(_this->p_current_item);
-    uint32_t *p_byte_counter_dst;
+    uint8_t *p_byte_counter_dst;
     uint8_t header_size;
 
     /* if required, write ch_number at the beginning of the buffer (first byte) */
@@ -161,17 +160,16 @@ static uint16_t GetNewItem(CircularBufferDL2 *_this, CircularBuffer *cb, uint32_
     {
       p_dst[0] = ch_number;
       header_size = DL2_CHANNEL_SIZE + DL2_COUNTER_SIZE;
-      p_byte_counter_dst = (uint32_t*) &p_dst[DL2_CHANNEL_SIZE];
+      p_byte_counter_dst = &p_dst[DL2_CHANNEL_SIZE];
     }
     else
     {
       header_size = DL2_COUNTER_SIZE;
-      p_byte_counter_dst = (uint32_t*) p_dst;
+      p_byte_counter_dst = p_dst;
     }
 
     /* increment the byte counter by adding the payload size (item - header) */
-    *p_byte_counter_dst = _this->byte_counter;
-    _this->byte_counter += (cb_item_size - header_size);
+    (void) memcpy(p_byte_counter_dst, &_this->byte_counter, sizeof(_this->byte_counter));
 
     /* move buffer index after header */
     _this->item_idx = header_size;

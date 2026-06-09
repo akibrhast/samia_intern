@@ -7,8 +7,6 @@
   *
   * @brief   Define the Application Context public API.
   *
-  * TODO - insert here the file description
-  *
   ******************************************************************************
   * @attention
   *

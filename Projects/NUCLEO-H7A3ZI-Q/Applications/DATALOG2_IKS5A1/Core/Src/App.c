@@ -147,11 +147,11 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sUtilObj = UtilTaskAlloc(&MX_GPIO_LD1InitParams, NULL);
   sDatalogAppObj = DatalogAppTaskAlloc();
   sI2CBusObj = I2CBusTaskAlloc(&MX_I2C1InitParams);
-  sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_IIS2DULPX_INT1InitParams, NULL, NULL);
+  sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_IIS2DULPX_INT1InitParams, NULL, NULL, false);
   sIIS2MDCObj = IIS2MDCTaskAlloc(&MX_GPIO_IIS2MDC_DRDYInitParams, NULL);
-  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL);
+  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL, false);
   sISM330ISObj = ISM330ISTaskAlloc(&MX_GPIO_ISM330IS_INT2InitParams, NULL, NULL);
-  sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_ISM6HG256X_INT1InitParams, NULL, NULL);
+  sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_ISM6HG256X_INT1InitParams, NULL, NULL, false);
 
   /************ Add the task object to the context ************/
   res = ACAddTask(pAppContext, (AManagedTask *) sUtilObj);

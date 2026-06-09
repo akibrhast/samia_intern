@@ -59,7 +59,7 @@ uint8_t DeviceInformation_get_manufacturer(char **value)
 
 uint8_t DeviceInformation_get_model(char **value)
 {
-  *value = "STEVAL-STWINBX1 + STEVAl-PDETECT1";
+  *value = "STEVAL-STWINBX1 + STEVAL-PDETECT1";
   return PNPL_NO_ERROR_CODE;
 }
 

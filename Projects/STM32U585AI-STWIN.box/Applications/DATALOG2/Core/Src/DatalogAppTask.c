@@ -36,6 +36,7 @@
 #include "ISM330ISTask.h"
 #include "ISM6HG256XTask.h"
 #include "IIS2ICLXTask.h"
+#include "IIS2DULPXTask.h"
 #include "services/SQuery.h"
 #include "services/SUcfProtocol.h"
 
@@ -119,7 +120,6 @@ struct _DatalogAppTask
 
   ICommandParse_t parser;
 
-//TODO could be more useful to have a CommandParse Class? (ICommandParse + PnPLCommand_t)
   PnPLCommand_t outPnPLCommand;
 
   /** SensorLL interface for MLC **/
@@ -318,8 +318,18 @@ uint8_t DatalogAppTask_SetExtMLCIF(AManagedTask *task_obj)
   }
   else
   {
-    /* Store SensorLL interface for ISM6HG256X Sensor */
-    p_obj->extmlc_sensor_ll = ISM6HG256XTaskGetSensorLLIF((ISM6HG256XTask *) task_obj);
+    SQInit(&q1, SMGetSensorManager());
+    id = SQNextByNameAndType(&q1, "iis2dulpx", COM_TYPE_MLC);
+    if (id != 0xFFFF)
+    {
+      /* Store SensorLL interface for IIS2DULPX Sensor */
+      p_obj->extmlc_sensor_ll = IIS2DULPXTaskGetSensorLLIF((IIS2DULPXTask *) task_obj);
+    }
+    else
+    {
+      /* Store SensorLL interface for ISM6HG256X Sensor */
+      p_obj->extmlc_sensor_ll = ISM6HG256XTaskGetSensorLLIF((ISM6HG256XTask *) task_obj);
+    }
   }
   return 0;
 }
@@ -969,7 +979,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition Start Failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -1004,7 +1013,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition start failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -1096,8 +1104,6 @@ void DatalogApp_Task_command_response_cb(char *response_msg, uint32_t size)
 
 uint8_t DatalogAppTask_save_config_vtbl(void)
 {
-  //TODO register a callback in FileX to be called as soon as the file is saved
-
   DatalogAppTask *p_obj = getDatalogAppTask();
   char *responseJSON;
   uint32_t size;
@@ -1109,7 +1115,6 @@ uint8_t DatalogAppTask_save_config_vtbl(void)
       char *message = "Error: SD Failure";
       PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
       DatalogApp_Task_command_response_cb(responseJSON, size);
-      /* TODO: send msg to util task or error led;*/
       return 1;
     }
   }
@@ -1497,6 +1502,55 @@ uint8_t DatalogAppTask_load_iis2iclx_ucf_vtbl(const char *ucf_data, int32_t ucf_
   return 0;
 }
 
+uint8_t DatalogAppTask_load_iis2dulpx_ucf_vtbl(const char *ucf_data, int32_t ucf_size)
+{
+  DatalogAppTask *p_obj = getDatalogAppTask();
+  SQuery_t q1, q2, q4;
+  uint16_t id;
+  SensorStatus_t sensor_status;
+  char *responseJSON;
+  uint32_t size;
+  char *message = "";
+  bool status = true;
+  uint8_t res = SYS_NO_ERROR_CODE;
+
+  /* Create and initialize a new instance of UCF Protocol service */
+  SUcfProtocol_t ucf_protocol;
+  UCFP_Init(&ucf_protocol, p_obj->extmlc_sensor_ll);
+
+  /* Load the compressed UCF using the specified ISensorLL interface */
+  res = UCFP_LoadCompressedUcf(&ucf_protocol, ucf_data, ucf_size);
+  if (res != SYS_NO_ERROR_CODE)
+  {
+    message = "Error: MLC programming failed";
+    status = false;
+  }
+  PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, status);
+  DatalogApp_Task_command_response_cb(responseJSON, size);
+
+  /* Enable MLC */
+  SQInit(&q1, SMGetSensorManager());
+  id = SQNextByNameAndType(&q1, "iis2dulpx", COM_TYPE_MLC);
+  SMSensorEnable((uint8_t)id);
+
+  if (IStream_is_enabled((IStream_t *)p_obj->filex_device)) /* Save UCF into SDCard, if available */
+  {
+    filex_dctrl_write_ucf(p_obj->filex_device, ucf_size, ucf_data);
+  }
+
+  /* Get ISM330DHCX status from SM and update app_model */
+  SQInit(&q2, SMGetSensorManager());
+  id = SQNextByNameAndType(&q2, "iis2dulpx", COM_TYPE_ACC);
+  sensor_status = SMSensorGetStatus(id);
+  iis2dulpx_acc_set_samples_per_ts((int32_t)sensor_status.type.mems.odr, NULL);
+
+  SQInit(&q4, SMGetSensorManager());
+  id = SQNextByNameAndType(&q4, "iis2dulpx", COM_TYPE_MLC);
+  sensor_status = SMSensorGetStatus(id);
+
+  return 0;
+}
+
 uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t ucf_size,
                                                  const char *output_data, int32_t output_size)
 {
@@ -1514,8 +1568,18 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
   SUcfProtocol_t ucf_protocol;
   UCFP_Init(&ucf_protocol, p_obj->ispu_sensor_ll);
 
-  /* Enable multi read/write */
-  uint8_t val =  0x81;
+  /* Software reset */
+  uint8_t val = 0x00;
+  res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x10, &val, 1);
+
+  if (SYS_IS_ERROR_CODE(res))
+  {
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    return res;
+  }
+  tx_thread_sleep(2); /* Add 1 tick to be sure to wait at least the required time */
+
+  val = 0x01;
   res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x12, &val, 1);
 
   if (SYS_IS_ERROR_CODE(res))
@@ -1523,16 +1587,10 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     return res;
   }
+  tx_thread_sleep(2); /* Add 1 tick to be sure to wait at least the required time */
 
-  while (1)
-  {
-    uint8_t ctrl;
-    ISensorReadReg(p_obj->ispu_sensor_ll, 0x12, &ctrl, 1);
-    if (!(ctrl & 1))
-    {
-      break;
-    }
-  }
+  val = 0x00;
+  res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x3, &val, 1);
 
   /* Set default values for FUNC_CFG_ACCESS register */
   val = 0x00;
@@ -1554,27 +1612,8 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
       /* ISPU code is not working */
     }
   }
-
-  /* Reset input configuration register for ISPU */
-  val = 0x00;
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x52, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x53, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x54, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x55, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x56, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x57, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x58, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x59, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5A, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5B, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5C, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5D, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5E, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5F, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x60, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x61, &val, 1);
-
   tx_thread_sleep(10);
+
   /* Load the compressed UCF using the specified ISensorLL interface */
   UCFP_LoadCompressedUcf(&ucf_protocol, ucf_data, ucf_size);
 
@@ -1618,7 +1657,7 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
   SQInit(&q2, SMGetSensorManager());
   id = SQNextByNameAndType(&q2, "iis3dwb10is", COM_TYPE_ACC);
   sensor_status = SMSensorGetStatus(id);
-  iis3dwb10is_ext_acc_set_samples_per_ts((int32_t)sensor_status.type.mems.odr, NULL);
+  iis3dwb10is_acc_set_samples_per_ts((int32_t)sensor_status.type.mems.odr, NULL);
 
   SQInit(&q3, SMGetSensorManager());
   id = SQNextByNameAndType(&q3, "iis3dwb10is", COM_TYPE_ISPU);
@@ -1765,7 +1804,7 @@ uint8_t DatalogAppTask_load_ucf(const char *p_ucf_data, uint32_t ucf_size, const
   id = SQNextByNameAndType(&q1, "iis3dwb10is", COM_TYPE_ISPU);
   if (id != 0xFFFF)
   {
-    iis3dwb10is_ext_ispu_load_file(p_ucf_data, ucf_size, p_output_data, output_size);
+    iis3dwb10is_ispu_load_file(p_ucf_data, ucf_size, p_output_data, output_size);
   }
   else
   {
@@ -1786,14 +1825,23 @@ uint8_t DatalogAppTask_load_ucf(const char *p_ucf_data, uint32_t ucf_size, const
       else
       {
         SQInit(&q1, SMGetSensorManager());
-        id = SQNextByNameAndType(&q1, "ism6hg256x", COM_TYPE_MLC);
+        id = SQNextByNameAndType(&q1, "iis2dulpx", COM_TYPE_MLC);
         if (id != 0xFFFF)
         {
-          ism6hg256x_mlc_load_file(p_ucf_data, ucf_size);
+          iis2dulpx_mlc_load_file(p_ucf_data, ucf_size);
         }
         else
         {
-          ism330dhcx_mlc_load_file(p_ucf_data, ucf_size);
+          SQInit(&q1, SMGetSensorManager());
+          id = SQNextByNameAndType(&q1, "ism6hg256x", COM_TYPE_MLC);
+          if (id != 0xFFFF)
+          {
+            ism6hg256x_mlc_load_file(p_ucf_data, ucf_size);
+          }
+          else
+          {
+            ism330dhcx_mlc_load_file(p_ucf_data, ucf_size);
+          }
         }
       }
     }

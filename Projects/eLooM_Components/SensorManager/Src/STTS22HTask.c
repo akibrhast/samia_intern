@@ -433,6 +433,10 @@ sys_error_code_t STTS22HTask_vtblOnCreateTask(
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(stts22h_priv_t));
+    }
   }
   else
   {
@@ -442,6 +446,10 @@ sys_error_code_t STTS22HTask_vtblOnCreateTask(
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(stts22h_priv_t));
     }
   }
 
@@ -553,8 +561,7 @@ sys_error_code_t STTS22HTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
         /* Deactivate the sensor */
         stts22h_temp_data_rate_set(p_sensor_drv, STTS22H_POWER_DOWN);
       }
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_fifo_timer);
@@ -563,6 +570,8 @@ sys_error_code_t STTS22HTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         STTS22HTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("STTS22H: -> STATE1\r\n"));
   }

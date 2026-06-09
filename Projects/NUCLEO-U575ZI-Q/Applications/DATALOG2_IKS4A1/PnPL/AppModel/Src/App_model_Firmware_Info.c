@@ -65,7 +65,7 @@ uint8_t firmware_info_get_alias(char **value)
 
 uint8_t firmware_info_get_fw_name(char **value)
 {
-  *value = "FP-SNS-DATALOG2_Datalog2";
+  *value = "FP-SNS-DATALOG2_Datalog2_IKS4A1";
   return PNPL_NO_ERROR_CODE;
 }
 

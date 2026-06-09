@@ -59,6 +59,10 @@
 #define LIS2DUXS12_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LIS2DUXS12_DYNAMIC_ADDR
+#define LIS2DUXS12_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                SYS_DEBUGF3(SYS_DBG_LIS2DUXS12, level, message)
 
 #ifndef HSD_USE_DUMMY_DATA
@@ -369,7 +373,8 @@ ISensorLL_t *LIS2DUXS12TaskGetSensorLLIF(LIS2DUXS12Task *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *LIS2DUXS12TaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *LIS2DUXS12TaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                    boolean_t i3c_flag)
 {
   LIS2DUXS12Task *p_new_obj = SysAlloc(sizeof(LIS2DUXS12Task));
 
@@ -388,6 +393,7 @@ AManagedTaskEx *LIS2DUXS12TaskAlloc(const void *pIRQConfig, const void *pMLCConf
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->sensor_status.p_name, sTheClass.class_descriptor.p_name);
     strcpy(p_new_obj->mlc_sensor_status.p_name, sTheClass.mlc_class_descriptor.p_name);
@@ -397,9 +403,9 @@ AManagedTaskEx *LIS2DUXS12TaskAlloc(const void *pIRQConfig, const void *pMLCConf
 }
 
 AManagedTaskEx *LIS2DUXS12TaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                           const char *p_name)
+                                           boolean_t i3c_flag, const char *p_name)
 {
-  LIS2DUXS12Task *p_new_obj = (LIS2DUXS12Task *) LIS2DUXS12TaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  LIS2DUXS12Task *p_new_obj = (LIS2DUXS12Task *)LIS2DUXS12TaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->sensor_status.p_name, p_name);
@@ -409,7 +415,7 @@ AManagedTaskEx *LIS2DUXS12TaskAllocSetName(const void *pIRQConfig, const void *p
 }
 
 AManagedTaskEx *LIS2DUXS12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                          const void *pCSConfig)
+                                          const void *pCSConfig, boolean_t i3c_flag)
 {
   LIS2DUXS12Task *p_obj = (LIS2DUXS12Task *)p_mem_block;
 
@@ -428,15 +434,16 @@ AManagedTaskEx *LIS2DUXS12TaskStaticAlloc(void *p_mem_block, const void *pIRQCon
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *)p_obj;
 }
 
 AManagedTaskEx *LIS2DUXS12TaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                 const void *pCSConfig, const char *p_name)
+                                                 const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  LIS2DUXS12Task *p_obj = (LIS2DUXS12Task *) LIS2DUXS12TaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  LIS2DUXS12Task *p_obj = (LIS2DUXS12Task *) LIS2DUXS12TaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->sensor_status.p_name, p_name);
@@ -539,6 +546,23 @@ sys_error_code_t LIS2DUXS12Task_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(lis2duxs12_priv_t));
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LIS2DUXS12_ID, (uint8_t)(LIS2DUXS12_I2C_ADD_H >> 1), LIS2DUXS12_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(lis2duxs12_priv_t));
+    }
   }
   else
   {
@@ -547,6 +571,10 @@ sys_error_code_t LIS2DUXS12Task_vtblOnCreateTask(AManagedTask *_this, tx_entry_f
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(lis2duxs12_priv_t));
     }
   }
 
@@ -693,8 +721,7 @@ sys_error_code_t LIS2DUXS12Task_vtblDoEnterPowerMode(AManagedTask *_this, const 
       }
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -711,6 +738,8 @@ sys_error_code_t LIS2DUXS12Task_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         LIS2DUXS12TaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LIS2DUXS12: -> STATE1\r\n"));
@@ -988,8 +1017,20 @@ sys_error_code_t LIS2DUXS12Task_vtblSensorSetODR(ISensorMems_t *_this, float_t o
       /* ODR = 0 sends only message to switch off the sensor.
        * Do not update the model in case of odr = 0 */
 
-      p_if_owner->sensor_status.type.mems.odr = odr;
-      p_if_owner->sensor_status.type.mems.measured_odr = 0.0f;
+      if (sensor_id == p_if_owner->acc_id)
+      {
+        p_if_owner->sensor_status.type.mems.odr = odr;
+        p_if_owner->sensor_status.type.mems.measured_odr = 0.0f;
+      }
+      else if (sensor_id == p_if_owner->mlc_id)
+      {
+        p_if_owner->mlc_sensor_status.type.mems.odr = odr;
+        p_if_owner->mlc_sensor_status.type.mems.measured_odr = 0.0f;
+      }
+      else
+      {
+        /**/
+      }
     }
     /* Set a new command message in the queue */
     SMMessage report =
@@ -1019,8 +1060,19 @@ sys_error_code_t LIS2DUXS12Task_vtblSensorSetFS(ISensorMems_t *_this, float_t fs
   }
   else
   {
-    p_if_owner->sensor_status.type.mems.fs = fs;
-    p_if_owner->sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->sensor_status.type.mems.fs;
+    if (sensor_id == p_if_owner->acc_id)
+    {
+      p_if_owner->sensor_status.type.mems.fs = fs;
+      p_if_owner->sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->sensor_status.type.mems.fs;
+    }
+    else if (sensor_id == p_if_owner->mlc_id)
+    {
+      p_if_owner->mlc_sensor_status.type.mems.fs = fs;
+    }
+    else
+    {
+      /**/
+    }
     /* Set a new command message in the queue */
     SMMessage report =
     {
@@ -1397,7 +1449,6 @@ static sys_error_code_t LIS2DUXS12TaskExecuteStepDatalog(AManagedTask *_this)
                 p_obj->samples_sum = 0;
                 p_obj->odr_count = 0;
               }
-
               /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue (samples_per_it):
                * [X0, Y0, Z0]
                * [X1, Y1, Z1]
@@ -1603,10 +1654,17 @@ static sys_error_code_t LIS2DUXS12TaskSensorInit(LIS2DUXS12Task *_this)
   lis2duxs12_md_t mode;
   lis2duxs12_status_t status;
   /* FIFO INT setup */
-  lis2duxs12_pin_int_route_t int1_route = {0};
-  lis2duxs12_pin_int_route_t int2_route = {0};
+  lis2duxs12_pin_int1_route_t int1_route = {0};
+  lis2duxs12_pin_int2_route_t int2_route = {0};
 
-  /*add 10ms delay?*/
+  if (_this->i3c_flag)
+  {
+    lis2duxs12_i3c_cfg_t i3c_cfg;
+    lis2duxs12_i3c_configure_get(p_sensor_drv, &i3c_cfg);
+    i3c_cfg.asf_on = PROPERTY_ENABLE;
+    lis2duxs12_i3c_configure_set(p_sensor_drv, &i3c_cfg);
+  }
+  /* Exit deep power down */
   lis2duxs12_exit_deep_power_down(p_sensor_drv);
   ret_val = lis2duxs12_device_id_get(p_sensor_drv, &reg0);
   if (ret_val == 0)
@@ -1615,12 +1673,74 @@ static sys_error_code_t LIS2DUXS12TaskSensorInit(LIS2DUXS12Task *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LIS2DUXS12: sensor - I am 0x%x.\r\n", reg0));
 
-  /* Restore default configuration */
-  lis2duxs12_init_set(p_sensor_drv, LIS2DUXS12_RESET);
+  /* Wait for the reset to complete */
   do
   {
     lis2duxs12_status_get(p_sensor_drv, &status);
   } while (status.sw_reset);
+
+  lis2duxs12_mode_get(p_sensor_drv, &mode);
+  /* Full scale selection. */
+  if (_this->sensor_status.type.mems.fs < 3.0f)
+  {
+    mode.fs = LIS2DUXS12_2g;
+  }
+  else if (_this->sensor_status.type.mems.fs < 5.0f)
+  {
+    mode.fs = LIS2DUXS12_4g;
+  }
+  else if (_this->sensor_status.type.mems.fs < 9.0f)
+  {
+    mode.fs = LIS2DUXS12_8g;
+  }
+  else
+  {
+    mode.fs = LIS2DUXS12_16g;
+  }
+  /* Output data rate selection. */
+  if (_this->sensor_status.type.mems.odr < 7.0f)
+  {
+    mode.odr = LIS2DUXS12_6Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 13.0f)
+  {
+    mode.odr = LIS2DUXS12_12Hz5_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 26.0f)
+  {
+    mode.odr = LIS2DUXS12_25Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 51.0f)
+  {
+    mode.odr = LIS2DUXS12_50Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 101.0f)
+  {
+    mode.odr = LIS2DUXS12_100Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 201.0f)
+  {
+    mode.odr = LIS2DUXS12_200Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 401.0f)
+  {
+    mode.odr = LIS2DUXS12_400Hz_HP;
+  }
+  else
+  {
+    mode.odr = LIS2DUXS12_800Hz_HP;
+  }
+
+  if (_this->sensor_status.is_active)
+  {
+    lis2duxs12_mode_set(p_sensor_drv, &mode);
+  }
+  else
+  {
+    mode.odr = LIS2DUXS12_OFF;
+    lis2duxs12_mode_set(p_sensor_drv, &mode);
+    _this->sensor_status.is_active = false;
+  }
 
 #if LIS2DUXS12_FIFO_ENABLED
 
@@ -1639,13 +1759,15 @@ static sys_error_code_t LIS2DUXS12TaskSensorInit(LIS2DUXS12Task *_this)
   }
 
   lis2duxs12_fifo_mode_t fifo_mode;
+  lis2duxs12_fifo_batch_t fifo_batch;
   fifo_mode.store = LIS2DUXS12_FIFO_1X;
   fifo_mode.xl_only = 1;
-  fifo_mode.watermark = _this->samples_per_it;
   fifo_mode.operation = LIS2DUXS12_STREAM_MODE;
-  fifo_mode.batch.dec_ts = LIS2DUXS12_DEC_TS_OFF;
-  fifo_mode.batch.bdr_xl = LIS2DUXS12_BDR_XL_ODR;
+  fifo_batch.dec_ts = LIS2DUXS12_DEC_TS_OFF;
+  fifo_batch.bdr_xl = LIS2DUXS12_BDR_XL_ODR;
   lis2duxs12_fifo_mode_set(p_sensor_drv, fifo_mode);
+  lis2duxs12_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
+  lis2duxs12_fifo_batch_set(p_sensor_drv, fifo_batch);
 
   /* FIFO_WTM_IA routing on pin INT1 */
   lis2duxs12_pin_int1_route_get(p_sensor_drv, &int1_route);
@@ -1697,7 +1819,6 @@ static sys_error_code_t LIS2DUXS12TaskSensorInit(LIS2DUXS12Task *_this)
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -1713,70 +1834,6 @@ static sys_error_code_t LIS2DUXS12TaskSensorInit(LIS2DUXS12Task *_this)
     _this->lis2duxs12_task_cfg_timer_period_ms = (uint16_t)(1000.0f / _this->sensor_status.type.mems.odr);
 #endif
   }
-
-  lis2duxs12_mode_get(p_sensor_drv, &mode);
-  /* Full scale selection. */
-  if (_this->sensor_status.type.mems.fs < 3.0f)
-  {
-    mode.fs = LIS2DUXS12_2g;
-  }
-  else if (_this->sensor_status.type.mems.fs < 5.0f)
-  {
-    mode.fs = LIS2DUXS12_4g;
-  }
-  else if (_this->sensor_status.type.mems.fs < 9.0f)
-  {
-    mode.fs = LIS2DUXS12_8g;
-  }
-  else
-  {
-    mode.fs = LIS2DUXS12_16g;
-  }
-
-  if (_this->sensor_status.type.mems.odr < 7.0f)
-  {
-    mode.odr = LIS2DUXS12_6Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 13.0f)
-  {
-    mode.odr = LIS2DUXS12_12Hz5_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 26.0f)
-  {
-    mode.odr = LIS2DUXS12_25Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 51.0f)
-  {
-    mode.odr = LIS2DUXS12_50Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 101.0f)
-  {
-    mode.odr = LIS2DUXS12_100Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 201.0f)
-  {
-    mode.odr = LIS2DUXS12_200Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 401.0f)
-  {
-    mode.odr = LIS2DUXS12_400Hz_HP;
-  }
-  else
-  {
-    mode.odr = LIS2DUXS12_800Hz_HP;
-  }
-
-  if (_this->sensor_status.is_active)
-  {
-    lis2duxs12_mode_set(p_sensor_drv, &mode);
-  }
-  else
-  {
-    mode.odr = LIS2DUXS12_OFF;
-    lis2duxs12_mode_set(p_sensor_drv, &mode);
-    _this->sensor_status.is_active = false;
-  }
-
   _this->odr_count = 0;
   _this->delta_timestamp_sum = 0.0f;
   _this->samples_sum = 0;
@@ -2051,12 +2108,8 @@ static sys_error_code_t LIS2DUXS12TaskSensorSetFifoWM(LIS2DUXS12Task *_this, SMM
       lis2duxs12_wtm_level = LIS2DUXS12_MAX_WTM_LEVEL;
     }
     _this->samples_per_it = lis2duxs12_wtm_level;
-
-    lis2duxs12_fifo_mode_t fifo_mode;
-    lis2duxs12_fifo_mode_get(p_sensor_drv, &fifo_mode);
     /* Set FIFO watermark */
-    fifo_mode.watermark = _this->samples_per_it;
-    lis2duxs12_fifo_mode_set(p_sensor_drv, fifo_mode);
+    lis2duxs12_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
   }
   else
   {
@@ -2241,13 +2294,11 @@ static void LIS2DUXS12TaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void LIS2DUXS12TaskMLCTimerCallbackFunction(ULONG param)
@@ -2257,13 +2308,11 @@ static void LIS2DUXS12TaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

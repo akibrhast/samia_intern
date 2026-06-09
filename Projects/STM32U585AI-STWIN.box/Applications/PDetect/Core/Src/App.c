@@ -223,7 +223,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sIIS2MDCObj = IIS2MDCTaskAlloc(&MX_GPIO_INT_MAGInitParams, NULL);
   sISM330DHCXObj = ISM330DHCXTaskAlloc(&MX_GPIO_INT1_DHCXInitParams, NULL, &MX_GPIO_CS_DHCXInitParams);
   sSTTS22HObj = STTS22HTaskAlloc(NULL, NULL, STTS22H_I2C_ADD_L);
-  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL);
+  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL, false);
   sIMP34DT05Obj = IMP34DT05TaskAlloc(&MX_ADF1InitParams);
   if (ext_pdetect == true)
   {
@@ -256,7 +256,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
       {
         spSHT40Obj = SHT40TaskAlloc(NULL, NULL);
         spSGP40Obj = SGP40TaskAlloc(NULL, NULL);
-        spLPS22DFObj = LPS22DFTaskAlloc(NULL, NULL);
+        spLPS22DFObj = LPS22DFTaskAlloc(NULL, NULL, false);
       }
     }
   }

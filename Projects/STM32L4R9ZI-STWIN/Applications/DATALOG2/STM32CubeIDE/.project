@@ -2052,6 +2052,11 @@
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I2CBusIF.c</locationURI>
 		</link>
 		<link>
+			<name>User/eLooM_Components/SensorManager/Src/I3CBusIF.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I3CBusIF.c</locationURI>
+		</link>
+		<link>
 			<name>User/eLooM_Components/SensorManager/Src/I2CBusTask.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I2CBusTask.c</locationURI>

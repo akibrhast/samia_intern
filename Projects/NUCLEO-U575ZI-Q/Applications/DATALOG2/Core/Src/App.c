@@ -129,7 +129,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   PnPLSetAllocationFunctions(SysAlloc, SysFree);
 
   /************ Allocate task objects ************/
-  sUtilObj = UtilTaskAlloc(&MX_GPIO_LEDBlueInitParams, &MX_GPIO_UBInitParams);
+  sUtilObj = UtilTaskAlloc(&MX_GPIO_LEDBlueInitParams, NULL);
   sDatalogAppObj = DatalogAppTaskAlloc();
   sI2CBusObj     = I2CBusTaskAlloc(&MX_I2C1InitParams);
   sISM330DHCXObj  = ISM330DHCXTaskAlloc(&MX_GPIO_INT1_DHCXInitParams, NULL, NULL);

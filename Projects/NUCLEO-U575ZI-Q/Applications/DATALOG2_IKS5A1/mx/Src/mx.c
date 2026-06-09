@@ -170,6 +170,17 @@ const MX_GPIOParams_t MX_GPIO_ISM330IS_INT2InitParams =
 };
 
 /**
+  * (DIL_INT1) Initialization parameters.
+  */
+const MX_GPIOParams_t MX_GPIO_INT1_EXTERNALInitParams =
+{
+  MX_GPIO_PE9_Init,
+  DIL_INT1_EXTI_IRQn,
+  DIL_INT1_Pin,
+  DIL_INT1_GPIO_Port
+};
+
+/**
   * (SPI_CS) Initialization parameters.
   */
 const MX_GPIOParams_t MX_GPIO_CS_EXTERNALInitParams =

@@ -69,6 +69,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define DIL_INT2_Pin GPIO_PIN_1
+#define DIL_INT2_GPIO_Port GPIOC
+#define DIL_INT2_EXTI_IRQn EXTI1_IRQn
 #define IIS2DULPX_INT1_Pin GPIO_PIN_3
 #define IIS2DULPX_INT1_GPIO_Port GPIOC
 #define IIS2DULPX_INT1_EXTI_IRQn EXTI3_IRQn
@@ -88,6 +91,9 @@ void Error_Handler(void);
 #define USER_INT_Pin GPIO_PIN_15
 #define USER_INT_GPIO_Port GPIOF
 #define USER_INT_EXTI_IRQn EXTI15_IRQn
+#define DIL_INT1_Pin GPIO_PIN_9
+#define DIL_INT1_GPIO_Port GPIOE
+#define DIL_INT1_EXTI_IRQn EXTI9_IRQn
 #define ISM6HG256X_INT1_Pin GPIO_PIN_11
 #define ISM6HG256X_INT1_GPIO_Port GPIOE
 #define ISM6HG256X_INT1_EXTI_IRQn EXTI11_IRQn

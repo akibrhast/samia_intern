@@ -22,3 +22,5 @@ flashes the DATALOG2 firmware.
 
 WiFi_module_upgrade contains the binary and the step-by-step procedure to upgrade the WiFi module 
 firmware. The module must be upgraded to run the DATALOG2 example properly on STWIN.box.
+
+**cli_example is deprecated and in NRND state. It is Not Recommended for New Design. This is the last update and no further updates are planned. Please, consider moving to [STDATALOG_PYSDK](https://github.com/STMicroelectronics/stdatalog-pysdk).**

@@ -142,6 +142,11 @@ boolean_t HardwareDetection_Check_Ext_IIS3DWB10IS(void)
 
   iis3dwb10is_device_id_get(&ctx, (uint8_t *) &whoami_val);
 
+  uint8_t data = 0x00;
+  iis3dwb10is_write_reg(&ctx, IIS3DWB10IS_IF_CFG, &data, 1);
+  data = 0x0C;
+  iis3dwb10is_write_reg(&ctx, IIS3DWB10IS_PIN_CTRL, &data, 1);
+
   HAL_SPI_DeInit(&hspi2);
   HardwareDetection_SPI2_CS_DeInit();
 

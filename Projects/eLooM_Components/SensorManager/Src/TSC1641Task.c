@@ -553,8 +553,7 @@ sys_error_code_t TSC1641Task_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       alert.TSC1641_ALEN = TSC1641_Conf_Off;   // Alert Latch Enable
       TSC1641_SetAlert(p_sensor_drv, &alert);
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -563,6 +562,8 @@ sys_error_code_t TSC1641Task_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         TSC1641TaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("TSC1641: -> STATE1\r\n"));
   }

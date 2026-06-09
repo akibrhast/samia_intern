@@ -105,7 +105,6 @@ struct _DatalogAppTask
 
   ICommandParse_t parser;
 
-//TODO could be more useful to have a CommandParse Class? (ICommandParse + PnPLCommand_t)
   PnPLCommand_t outPnPLCommand;
 
   AppModel_t *datalog_model;
@@ -864,7 +863,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition Start Failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -893,7 +891,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition start failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -985,8 +982,6 @@ void DatalogApp_Task_command_response_cb(char *response_msg, uint32_t size)
 
 uint8_t DatalogAppTask_save_config_vtbl(void)
 {
-  //TODO register a callback in FileX to be called as soon as the file is saved
-
   DatalogAppTask *p_obj = getDatalogAppTask();
   char *responseJSON;
   uint32_t size;
@@ -998,7 +993,6 @@ uint8_t DatalogAppTask_save_config_vtbl(void)
       char *message = "Error: SD Failure";
       PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
       DatalogApp_Task_command_response_cb(responseJSON, size);
-      /* TODO: send msg to util task or error led;*/
       return 1;
     }
   }

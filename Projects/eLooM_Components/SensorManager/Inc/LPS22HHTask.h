@@ -71,6 +71,11 @@ struct _LPS22HHTask
   const MX_GPIOParams_t *pCSConfig;
 
   /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
+  /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
   ABusIF *p_sensor_bus_if;
@@ -195,7 +200,7 @@ ISourceObservable *LPS22HHTaskGetPressSensorIF(LPS22HHTask *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag);
 
 /**
   * Call the default ::LPS22HHTaskAlloc and then it overwrite sensor name
@@ -208,7 +213,8 @@ AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name);
+AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                        const char *p_name);
 
 /**
   * Allocate an instance of ::LPS22HHTask in a memory block specified by the application.
@@ -230,7 +236,8 @@ AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSC
   * @return a pointer to the generic object ::AManagedTaskEx_t if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                       boolean_t i3c_flag);
 
 /**
   * Call the default ::LPS22HHTaskAlloc and then it overwrite sensor name
@@ -251,7 +258,7 @@ AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LPS22HHTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                              const char *p_name);
+                                              boolean_t i3c_flag, const char *p_name);
 
 /**
   * Get the Bus interface for the sensor task.

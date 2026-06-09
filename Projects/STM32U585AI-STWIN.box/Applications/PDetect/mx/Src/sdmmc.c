@@ -66,7 +66,7 @@ void HAL_SD_MspInit(SD_HandleTypeDef *sdHandle)
     /* USER CODE END SDMMC1_MspInit 0 */
 
     /** Initializes the peripherals clock
-      */
+    */
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_SDMMC;
     PeriphClkInit.SdmmcClockSelection = RCC_SDMMCCLKSOURCE_PLL1;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -90,7 +90,6 @@ void HAL_SD_MspInit(SD_HandleTypeDef *sdHandle)
     GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_10 | GPIO_PIN_12 | GPIO_PIN_9
                           | GPIO_PIN_8;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-//    GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
@@ -98,7 +97,6 @@ void HAL_SD_MspInit(SD_HandleTypeDef *sdHandle)
 
     GPIO_InitStruct.Pin = GPIO_PIN_2;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-//    GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;

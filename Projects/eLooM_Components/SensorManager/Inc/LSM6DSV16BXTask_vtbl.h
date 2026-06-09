@@ -58,6 +58,14 @@ sys_error_code_t LSM6DSV16BXTask_vtblAccGetODR(ISensorMems_t *_this, float_t *p_
 float_t LSM6DSV16BXTask_vtblAccGetFS(ISensorMems_t *_this);
 float_t LSM6DSV16BXTask_vtblAccGetSensitivity(ISensorMems_t *_this);
 EMData_t LSM6DSV16BXTask_vtblAccGetDataInfo(ISourceObservable *_this);
+#if LSM6DSV16BX_TDM_ENABLED
+uint8_t LSM6DSV16BXTask_vtblTdmAccGetId(ISourceObservable *_this);
+IEventSrc *LSM6DSV16BXTask_vtblTdmAccGetEventSourceIF(ISourceObservable *_this);
+sys_error_code_t LSM6DSV16BXTask_vtblTdmAccGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal);
+float_t LSM6DSV16BXTask_vtblTdmAccGetFS(ISensorMems_t *_this);
+float_t LSM6DSV16BXTask_vtblTdmAccGetSensitivity(ISensorMems_t *_this);
+EMData_t LSM6DSV16BXTask_vtblTdmAccGetDataInfo(ISourceObservable *_this);
+#endif
 uint8_t LSM6DSV16BXTask_vtblGyroGetId(ISourceObservable *_this);
 IEventSrc *LSM6DSV16BXTask_vtblGyroGetEventSourceIF(ISourceObservable *_this);
 sys_error_code_t LSM6DSV16BXTask_vtblGyroGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal);
@@ -72,10 +80,19 @@ sys_error_code_t LSM6DSV16BXTask_vtblSensorEnable(ISensor_t *_this);
 sys_error_code_t LSM6DSV16BXTask_vtblSensorDisable(ISensor_t *_this);
 boolean_t LSM6DSV16BXTask_vtblSensorIsEnabled(ISensor_t *_this);
 SensorDescriptor_t LSM6DSV16BXTask_vtblAccGetDescription(ISensor_t *_this);
+#if LSM6DSV16BX_TDM_ENABLED
+SensorDescriptor_t LSM6DSV16BXTask_vtblTdmAccGetDescription(ISensor_t *_this);
+#endif
 SensorDescriptor_t LSM6DSV16BXTask_vtblGyroGetDescription(ISensor_t *_this);
 SensorStatus_t LSM6DSV16BXTask_vtblAccGetStatus(ISensor_t *_this);
+#if LSM6DSV16BX_TDM_ENABLED
+SensorStatus_t LSM6DSV16BXTask_vtblTdmAccGetStatus(ISensor_t *_this);
+#endif
 SensorStatus_t LSM6DSV16BXTask_vtblGyroGetStatus(ISensor_t *_this);
 SensorStatus_t *LSM6DSV16BXTask_vtblAccGetStatusPointer(ISensor_t *_this);
+#if LSM6DSV16BX_TDM_ENABLED
+SensorStatus_t *LSM6DSV16BXTask_vtblTdmAccGetStatusPointer(ISensor_t *_this);
+#endif
 SensorStatus_t *LSM6DSV16BXTask_vtblGyroGetStatusPointer(ISensor_t *_this);
 
 sys_error_code_t LSM6DSV16BXTask_vtblSensorReadReg(ISensorLL_t *_this, uint16_t reg, uint8_t *data, uint16_t len);

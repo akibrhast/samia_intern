@@ -26,8 +26,6 @@ extern "C" {
 
 #include "services/syserror.h"
 
-/* TODO: menage here all the msg ID ? */
-
 #define APP_REPORT_ID_BLE_CMD                           0x04
 #define APP_MESSAGE_ID_UTIL                             0x0B  ///< Message ID used for the messages class of Utility task.
 #define APP_REPORT_ID_FORCE_STEP                        0xFE  ///< Special ID used by the INIT task to force the execution of ManagedTaskEx step.

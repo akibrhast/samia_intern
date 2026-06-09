@@ -156,11 +156,11 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sUtilObj = UtilTaskAlloc(&MX_GPIO_LD1InitParams, NULL);
   sDatalogAppObj = DatalogAppTaskAlloc();
   sI2CBusObj = I2CBusTaskAlloc(&MX_I2C1InitParams);
-  sLIS2DUXS12Obj = LIS2DUXS12TaskAlloc(&MX_GPIO_LIS2DUXS12_INTInitParams, NULL, NULL);
+  sLIS2DUXS12Obj = LIS2DUXS12TaskAlloc(&MX_GPIO_LIS2DUXS12_INTInitParams, NULL, NULL, false);
   sLIS2MDLObj = LIS2MDLTaskAlloc(&MX_GPIO_LIS2MDL_DRDYInitParams, NULL);
-  sLPS22DFObj = LPS22DFTaskAlloc(&MX_GPIO_LPS22DF_INTInitParams, NULL);
+  sLPS22DFObj = LPS22DFTaskAlloc(&MX_GPIO_LPS22DF_INTInitParams, NULL, false);
   sLSM6DSO16ISObj = LSM6DSO16ISTaskAlloc(NULL, NULL, NULL);
-  sLSM6DSV16XObj = LSM6DSV16XTaskAlloc(&MX_GPIO_LSM6DSV16X_INT1InitParams, NULL, NULL);
+  sLSM6DSV16XObj = LSM6DSV16XTaskAlloc(&MX_GPIO_LSM6DSV16X_INT1InitParams, NULL, NULL, false);
   sSHT40Obj = SHT40TaskAlloc(NULL, NULL);
   sSTTS22HObj = STTS22HTaskAlloc(NULL, NULL, STTS22H_I2C_ADD_H);
 

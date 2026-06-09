@@ -699,8 +699,7 @@ sys_error_code_t IIS2ICLXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
         iis2iclx_fifo_mode_set(p_sensor_drv, IIS2ICLX_BYPASS_MODE);
       }
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -717,6 +716,8 @@ sys_error_code_t IIS2ICLXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
       {
         IIS2ICLXTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
 
@@ -1677,7 +1678,7 @@ static sys_error_code_t IIS2ICLXTaskSensorInit(IIS2ICLXTask *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS2ICLX: sensor - I am 0x%x.\r\n", reg0));
 
-  //TODO: STF - what is this?
+  /* Enable Filter */
   iis2iclx_read_reg(p_sensor_drv, IIS2ICLX_CTRL1_XL, (uint8_t *) &reg0, 1);
   reg0 |= 0xA0;
   iis2iclx_write_reg(p_sensor_drv, IIS2ICLX_CTRL1_XL, (uint8_t *) &reg0, 1);
@@ -1818,7 +1819,6 @@ static sys_error_code_t IIS2ICLXTaskSensorInit(IIS2ICLXTask *_this)
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -1990,33 +1990,40 @@ static sys_error_code_t IIS2ICLXTaskSensorSetODR(IIS2ICLXTask *_this, SMMessage 
       /* Do not update the model in case of odr = 0 */
       odr = _this->sensor_status.type.mems.odr;
     }
-    else if (odr < 13.0f)
-    {
-      odr = 12.5f;
-    }
-    else if (odr < 27.0f)
-    {
-      odr = 26.0f;
-    }
-    else if (odr < 53.0f)
-    {
-      odr = 52.0f;
-    }
-    else if (odr < 105.0f)
-    {
-      odr = 104.0f;
-    }
-    else if (odr < 209.0f)
-    {
-      odr = 208.0f;
-    }
-    else if (odr < 417.0f)
-    {
-      odr = 416.0f;
-    }
     else
     {
-      odr = 833.0f;
+      /* Changing odr must disable MLC sensor: MLC can work properly only when setup from UCF */
+      _this->mlc_enable = FALSE;
+      _this->mlc_sensor_status.is_active = FALSE;
+
+      if (odr < 13.0f)
+      {
+        odr = 12.5f;
+      }
+      else if (odr < 27.0f)
+      {
+        odr = 26.0f;
+      }
+      else if (odr < 53.0f)
+      {
+        odr = 52.0f;
+      }
+      else if (odr < 105.0f)
+      {
+        odr = 104.0f;
+      }
+      else if (odr < 209.0f)
+      {
+        odr = 208.0f;
+      }
+      else if (odr < 417.0f)
+      {
+        odr = 416.0f;
+      }
+      else
+      {
+        odr = 833.0f;
+      }
     }
 
     if (!SYS_IS_ERROR_CODE(res))
@@ -2047,6 +2054,10 @@ static sys_error_code_t IIS2ICLXTaskSensorSetFS(IIS2ICLXTask *_this, SMMessage r
 
   float_t fs = (float_t) report.sensorMessage.fParam;
   uint8_t id = report.sensorMessage.nSensorId;
+
+  /* Changing fs must disable MLC sensor: MLC can work properly only when setup from UCF */
+  _this->mlc_enable = FALSE;
+  _this->mlc_sensor_status.is_active = FALSE;
 
   if (id == _this->acc_id)
   {
@@ -2293,13 +2304,11 @@ static void IIS2ICLXTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void IIS2ICLXTaskMLCTimerCallbackFunction(ULONG param)
@@ -2309,13 +2318,11 @@ static void IIS2ICLXTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

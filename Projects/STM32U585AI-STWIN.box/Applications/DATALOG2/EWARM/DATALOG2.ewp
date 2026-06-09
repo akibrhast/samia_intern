@@ -2649,6 +2649,9 @@
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</name>
                     </file>
                     <file>
+                        <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</name>
+                    </file>
+                    <file>
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusTask.c</name>
                     </file>
                     <file>
@@ -3179,10 +3182,10 @@
                             <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis2mdc_Mag.h</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis3dwb10is_Ext_Acc.h</name>
+                            <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis3dwb10is_Acc.h</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis3dwb10is_Ext_Ispu.h</name>
+                            <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis3dwb10is_Ispu.h</name>
                         </file>
                         <file>
                             <name>$PROJ_DIR$\..\PnPL\AppModel\Inc\App_model_Iis3dwb_Acc.h</name>
@@ -3296,10 +3299,10 @@
                             <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis2mdc_Mag.c</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Acc.c</name>
+                            <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Acc.c</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ext_Ispu.c</name>
+                            <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis3dwb10is_Ispu.c</name>
                         </file>
                         <file>
                             <name>$PROJ_DIR$\..\PnPL\AppModel\Src\App_model_Iis3dwb_Acc.c</name>
@@ -3413,10 +3416,10 @@
                             <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis2mdc_Mag_PnPL.h</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis3dwb10is_Ext_Acc_PnPL.h</name>
+                            <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis3dwb10is_Acc_PnPL.h</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis3dwb10is_Ext_Ispu_PnPL.h</name>
+                            <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis3dwb10is_Ispu_PnPL.h</name>
                         </file>
                         <file>
                             <name>$PROJ_DIR$\..\PnPL\Components\Inc\Iis3dwb_Acc_PnPL.h</name>
@@ -3527,10 +3530,10 @@
                             <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis2mdc_Mag_PnPL.c</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis3dwb10is_Ext_Acc_PnPL.c</name>
+                            <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis3dwb10is_Acc_PnPL.c</name>
                         </file>
                         <file>
-                            <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis3dwb10is_Ext_Ispu_PnPL.c</name>
+                            <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis3dwb10is_Ispu_PnPL.c</name>
                         </file>
                         <file>
                             <name>$PROJ_DIR$\..\PnPL\Components\Src\Iis3dwb_Acc_PnPL.c</name>

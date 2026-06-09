@@ -58,6 +58,14 @@ sys_error_code_t ISM330BXTask_vtblAccGetODR(ISensorMems_t *_this, float_t *p_mea
 float_t ISM330BXTask_vtblAccGetFS(ISensorMems_t *_this);
 float_t ISM330BXTask_vtblAccGetSensitivity(ISensorMems_t *_this);
 EMData_t ISM330BXTask_vtblAccGetDataInfo(ISourceObservable *_this);
+#if ISM330BX_TDM_ENABLED
+uint8_t ISM330BXTask_vtblTdmAccGetId(ISourceObservable *_this);
+IEventSrc *ISM330BXTask_vtblTdmAccGetEventSourceIF(ISourceObservable *_this);
+sys_error_code_t ISM330BXTask_vtblTdmAccGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal);
+float_t ISM330BXTask_vtblTdmAccGetFS(ISensorMems_t *_this);
+float_t ISM330BXTask_vtblTdmAccGetSensitivity(ISensorMems_t *_this);
+EMData_t ISM330BXTask_vtblTdmAccGetDataInfo(ISourceObservable *_this);
+#endif
 uint8_t ISM330BXTask_vtblGyroGetId(ISourceObservable *_this);
 IEventSrc *ISM330BXTask_vtblGyroGetEventSourceIF(ISourceObservable *_this);
 sys_error_code_t ISM330BXTask_vtblGyroGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal);
@@ -72,10 +80,19 @@ sys_error_code_t ISM330BXTask_vtblSensorEnable(ISensor_t *_this);
 sys_error_code_t ISM330BXTask_vtblSensorDisable(ISensor_t *_this);
 boolean_t ISM330BXTask_vtblSensorIsEnabled(ISensor_t *_this);
 SensorDescriptor_t ISM330BXTask_vtblAccGetDescription(ISensor_t *_this);
+#if ISM330BX_TDM_ENABLED
+SensorDescriptor_t ISM330BXTask_vtblTdmAccGetDescription(ISensor_t *_this);
+#endif
 SensorDescriptor_t ISM330BXTask_vtblGyroGetDescription(ISensor_t *_this);
 SensorStatus_t ISM330BXTask_vtblAccGetStatus(ISensor_t *_this);
+#if ISM330BX_TDM_ENABLED
+SensorStatus_t ISM330BXTask_vtblTdmAccGetStatus(ISensor_t *_this);
+#endif
 SensorStatus_t ISM330BXTask_vtblGyroGetStatus(ISensor_t *_this);
 SensorStatus_t *ISM330BXTask_vtblAccGetStatusPointer(ISensor_t *_this);
+#if ISM330BX_TDM_ENABLED
+SensorStatus_t *ISM330BXTask_vtblTdmAccGetStatusPointer(ISensor_t *_this);
+#endif
 SensorStatus_t *ISM330BXTask_vtblGyroGetStatusPointer(ISensor_t *_this);
 
 sys_error_code_t ISM330BXTask_vtblSensorReadReg(ISensorLL_t *_this, uint16_t reg, uint8_t *data, uint16_t len);

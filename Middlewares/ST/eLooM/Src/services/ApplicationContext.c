@@ -6,8 +6,6 @@
   * @date    Jan 13, 2017
   * @brief
   *
-  * TODO - insert here the file description
-  *
   ******************************************************************************
   * @attention
   *
@@ -80,7 +78,7 @@ void ACRemoveTask(ApplicationContext *_this, AManagedTask *pTask)
   assert_param(_this != NULL);
   UNUSED(pTask);
 
-  // TODO: STF - TO BE IMPLEMENTED
+  /* TO BE IMPLEMENTED */
 
   sys_error_handler();
 }

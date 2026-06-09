@@ -63,6 +63,10 @@
 #define ISM330BX_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef ISM330BX_DYNAMIC_ADDR
+#define ISM330BX_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                 SYS_DEBUGF3(SYS_DBG_ISM330BX, level, message)
 
 #ifndef ISM330BX_TASK_CFG_I2C_ADDRESS
@@ -76,6 +80,10 @@
 #if (HSD_USE_DUMMY_DATA == 1)
 static int16_t dummyDataCounter_acc = 0;
 static int16_t dummyDataCounter_gyro = 0;
+#endif
+
+#if ISM330BX_TDM_ENABLED
+static ISM330BXTask *s_tdm_task_obj = NULL;
 #endif
 
 /**
@@ -92,6 +100,13 @@ typedef struct _ISM330BXTaskClass
     * Accelerometer IF virtual table.
     */
   const ISensorMems_vtbl acc_sensor_if_vtbl;
+
+#if ISM330BX_TDM_ENABLED
+  /**
+    * TDM accelerometer IF virtual table.
+    */
+  const ISensorMems_vtbl tdm_acc_sensor_if_vtbl;
+#endif
 
   /**
     * Gyro IF virtual table.
@@ -112,6 +127,13 @@ typedef struct _ISM330BXTaskClass
     * Specifies accelerometer sensor capabilities.
     */
   const SensorDescriptor_t acc_class_descriptor;
+
+#if ISM330BX_TDM_ENABLED
+  /**
+    * Specifies TDM accelerometer sensor capabilities.
+    */
+  const SensorDescriptor_t tdm_acc_class_descriptor;
+#endif
 
   /**
     * Specifies gyroscope sensor capabilities.
@@ -172,6 +194,10 @@ static sys_error_code_t ISM330BXTaskSensorInit(ISM330BXTask *_this);
   */
 static sys_error_code_t ISM330BXTaskSensorReadData(ISM330BXTask *_this);
 
+#if ISM330BX_TDM_ENABLED
+static sys_error_code_t ISM330BXTaskSensorReadDataTDM(ISM330BXTask *_this);
+#endif
+
 /**
   * Read the data from the mlc.
   *
@@ -216,6 +242,13 @@ static sys_error_code_t ISM330BXTaskEnterLowPowerMode(const ISM330BXTask *_this)
 
 static sys_error_code_t ISM330BXTaskConfigureIrqPin(const ISM330BXTask *_this, boolean_t LowPower);
 static sys_error_code_t ISM330BXTaskConfigureMLCPin(const ISM330BXTask *_this, boolean_t LowPower);
+
+#if ISM330BX_TDM_ENABLED
+static sys_error_code_t ISM330BXTaskConfigureSAIIrq(const ISM330BXTask *_this, boolean_t LowPower);
+static sys_error_code_t ISM330BXTaskConfigureTDM(ISM330BXTask *_this);
+static sys_error_code_t ISM330BXTaskStartTDM(ISM330BXTask *_this);
+static void ISM330BXTaskStopTDM(ISM330BXTask *_this);
+#endif
 
 /**
   * Callback function called when the software timer expires.
@@ -326,6 +359,31 @@ static ISM330BXTaskClass_t sTheClass =
     ISM330BXTask_vtblSensorSetFifoWM
   },
 
+#if ISM330BX_TDM_ENABLED
+  /* class::tdm_acc_sensor_if_vtbl virtual table */
+  {
+    {
+      {
+        ISM330BXTask_vtblTdmAccGetId,
+        ISM330BXTask_vtblTdmAccGetEventSourceIF,
+        ISM330BXTask_vtblTdmAccGetDataInfo
+      },
+      ISM330BXTask_vtblSensorEnable,
+      ISM330BXTask_vtblSensorDisable,
+      ISM330BXTask_vtblSensorIsEnabled,
+      ISM330BXTask_vtblTdmAccGetDescription,
+      ISM330BXTask_vtblTdmAccGetStatus,
+      ISM330BXTask_vtblTdmAccGetStatusPointer
+    },
+    ISM330BXTask_vtblTdmAccGetODR,
+    ISM330BXTask_vtblTdmAccGetFS,
+    ISM330BXTask_vtblTdmAccGetSensitivity,
+    ISM330BXTask_vtblSensorSetODR,
+    ISM330BXTask_vtblSensorSetFS,
+    ISM330BXTask_vtblSensorSetFifoWM
+  },
+#endif
+
   /* class::gyro_sensor_if_vtbl virtual table */
   {
     {
@@ -385,6 +443,14 @@ static ISM330BXTaskClass_t sTheClass =
     COM_TYPE_ACC
   },
 
+#if ISM330BX_TDM_ENABLED
+  /* TDM ACCELEROMETER DESCRIPTOR */
+  {
+    "ism330bx_tdm",
+    COM_TYPE_ACC
+  },
+#endif
+
   /* GYROSCOPE DESCRIPTOR */
   {
     "ism330bx",
@@ -415,6 +481,13 @@ ISourceObservable *ISM330BXTaskGetAccSensorIF(ISM330BXTask *_this)
   return (ISourceObservable *) & (_this->acc_sensor_if);
 }
 
+#if ISM330BX_TDM_ENABLED
+ISourceObservable *ISM330BXTaskGetTdmAccSensorIF(ISM330BXTask *_this)
+{
+  return (ISourceObservable *) & (_this->tdm_acc_sensor_if);
+}
+#endif
+
 ISourceObservable *ISM330BXTaskGetGyroSensorIF(ISM330BXTask *_this)
 {
   return (ISourceObservable *) & (_this->gyro_sensor_if);
@@ -430,7 +503,11 @@ ISensorLL_t *ISM330BXTaskGetSensorLLIF(ISM330BXTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *ISM330BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *ISM330BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+#if ISM330BX_TDM_ENABLED
+                                  const void *pSAIConfig,
+#endif
+                                  boolean_t i3c_flag)
 {
   ISM330BXTask *p_new_obj = SysAlloc(sizeof(ISM330BXTask));
 
@@ -441,18 +518,31 @@ AManagedTaskEx *ISM330BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig
 
     p_new_obj->super.vptr = &sTheClass.vtbl;
     p_new_obj->acc_sensor_if.vptr = &sTheClass.acc_sensor_if_vtbl;
+#if ISM330BX_TDM_ENABLED
+    p_new_obj->tdm_acc_sensor_if.vptr = &sTheClass.tdm_acc_sensor_if_vtbl;
+#endif
     p_new_obj->gyro_sensor_if.vptr = &sTheClass.gyro_sensor_if_vtbl;
     p_new_obj->mlc_sensor_if.vptr = &sTheClass.mlc_sensor_if_vtbl;
     p_new_obj->sensor_ll_if.vptr = &sTheClass.sensor_ll_if_vtbl;
     p_new_obj->acc_sensor_descriptor = &sTheClass.acc_class_descriptor;
+#if ISM330BX_TDM_ENABLED
+    p_new_obj->tdm_acc_sensor_descriptor = &sTheClass.tdm_acc_class_descriptor;
+#endif
     p_new_obj->gyro_sensor_descriptor = &sTheClass.gyro_class_descriptor;
     p_new_obj->mlc_sensor_descriptor = &sTheClass.mlc_class_descriptor;
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+#if ISM330BX_TDM_ENABLED
+    p_new_obj->pSAIConfig = (MX_SAIParams_t *) pSAIConfig;
+#endif
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
+#if ISM330BX_TDM_ENABLED
+    strcpy(p_new_obj->tdm_acc_sensor_status.p_name, sTheClass.tdm_acc_class_descriptor.p_name);
+#endif
     strcpy(p_new_obj->gyro_sensor_status.p_name, sTheClass.gyro_class_descriptor.p_name);
     strcpy(p_new_obj->mlc_sensor_status.p_name, sTheClass.mlc_class_descriptor.p_name);
   }
@@ -461,12 +551,22 @@ AManagedTaskEx *ISM330BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig
 }
 
 AManagedTaskEx *ISM330BXTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                         const char *p_name)
+#if ISM330BX_TDM_ENABLED
+                                         const void *pSAIConfig,
+#endif
+                                         boolean_t i3c_flag, const char *p_name)
 {
-  ISM330BXTask *p_new_obj = (ISM330BXTask *) ISM330BXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  ISM330BXTask *p_new_obj = (ISM330BXTask *)ISM330BXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig,
+#if ISM330BX_TDM_ENABLED
+                                                              pSAIConfig,
+#endif
+                                                              i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
+#if ISM330BX_TDM_ENABLED
+  strcpy(p_new_obj->tdm_acc_sensor_status.p_name, p_name);
+#endif
   strcpy(p_new_obj->gyro_sensor_status.p_name, p_name);
   strcpy(p_new_obj->mlc_sensor_status.p_name, p_name);
 
@@ -474,7 +574,11 @@ AManagedTaskEx *ISM330BXTaskAllocSetName(const void *pIRQConfig, const void *pML
 }
 
 AManagedTaskEx *ISM330BXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                        const void *pCSConfig)
+                                        const void *pCSConfig,
+#if ISM330BX_TDM_ENABLED
+                                        const void *pSAIConfig,
+#endif
+                                        boolean_t i3c_flag)
 {
   ISM330BXTask *p_obj = (ISM330BXTask *) p_mem_block;
 
@@ -485,28 +589,49 @@ AManagedTaskEx *ISM330BXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfi
 
     p_obj->super.vptr = &sTheClass.vtbl;
     p_obj->acc_sensor_if.vptr = &sTheClass.acc_sensor_if_vtbl;
+#if ISM330BX_TDM_ENABLED
+    p_obj->tdm_acc_sensor_if.vptr = &sTheClass.tdm_acc_sensor_if_vtbl;
+#endif
     p_obj->gyro_sensor_if.vptr = &sTheClass.gyro_sensor_if_vtbl;
     p_obj->mlc_sensor_if.vptr = &sTheClass.mlc_sensor_if_vtbl;
     p_obj->sensor_ll_if.vptr = &sTheClass.sensor_ll_if_vtbl;
     p_obj->acc_sensor_descriptor = &sTheClass.acc_class_descriptor;
+#if ISM330BX_TDM_ENABLED
+    p_obj->tdm_acc_sensor_descriptor = &sTheClass.tdm_acc_class_descriptor;
+#endif
     p_obj->gyro_sensor_descriptor = &sTheClass.gyro_class_descriptor;
     p_obj->mlc_sensor_descriptor = &sTheClass.mlc_class_descriptor;
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+#if ISM330BX_TDM_ENABLED
+    p_obj->pSAIConfig = (MX_SAIParams_t *) pSAIConfig;
+#endif
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *ISM330BXTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                               const void *pCSConfig, const char *p_name)
+                                               const void *pCSConfig,
+#if ISM330BX_TDM_ENABLED
+                                               const void *pSAIConfig,
+#endif
+                                               boolean_t i3c_flag, const char *p_name)
 {
-  ISM330BXTask *p_obj = (ISM330BXTask *) ISM330BXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  ISM330BXTask *p_obj = (ISM330BXTask *) ISM330BXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig,
+#if ISM330BX_TDM_ENABLED
+                                                                 pSAIConfig,
+#endif
+                                                                 i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
+#if ISM330BX_TDM_ENABLED
+  strcpy(p_obj->tdm_acc_sensor_status.p_name, p_name);
+#endif
   strcpy(p_obj->gyro_sensor_status.p_name, p_name);
   strcpy(p_obj->mlc_sensor_status.p_name, p_name);
 
@@ -526,6 +651,15 @@ IEventSrc *ISM330BXTaskGetAccEventSrcIF(ISM330BXTask *_this)
 
   return (IEventSrc *) _this->p_acc_event_src;
 }
+
+#if ISM330BX_TDM_ENABLED
+IEventSrc *ISM330BXTaskGetTdmAccEventSrcIF(ISM330BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  return (IEventSrc *) _this->p_tdm_acc_event_src;
+}
+#endif
 
 IEventSrc *ISM330BXTaskGetGyroEventSrcIF(ISM330BXTask *_this)
 {
@@ -555,6 +689,21 @@ sys_error_code_t ISM330BXTask_vtblHardwareInit(AManagedTask *_this, void *pParam
   {
     p_obj->pCSConfig->p_mx_init_f();
   }
+
+#if ISM330BX_TDM_ENABLED
+  if (p_obj->pSAIConfig != NULL)
+  {
+    if (p_obj->pSAIConfig->p_mx_dma_init_f != NULL)
+    {
+      p_obj->pSAIConfig->p_mx_dma_init_f();
+    }
+    if (p_obj->pSAIConfig->p_mx_init_f != NULL)
+    {
+      p_obj->pSAIConfig->p_mx_init_f();
+    }
+    ISM330BXTaskConfigureSAIIrq(p_obj, TRUE);
+  }
+#endif /* ISM330BX_TDM_ENABLED */
 
   return res;
 }
@@ -614,6 +763,15 @@ sys_error_code_t ISM330BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fun
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
   }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(ISM330BX_ID, (uint8_t)(ISM330BX_TASK_CFG_I2C_ADDRESS >> 1), ISM330BX_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
   else
   {
     p_obj->p_sensor_bus_if = I2CBusIFAlloc(ISM330BX_ID, ISM330BX_TASK_CFG_I2C_ADDRESS, 0);
@@ -637,6 +795,17 @@ sys_error_code_t ISM330BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fun
     return res;
   }
   IEventSrcInit(p_obj->p_acc_event_src);
+
+#if ISM330BX_TDM_ENABLED
+  p_obj->p_tdm_acc_event_src = DataEventSrcAlloc();
+  if (p_obj->p_tdm_acc_event_src == NULL)
+  {
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_OUT_OF_MEMORY_ERROR_CODE);
+    res = SYS_OUT_OF_MEMORY_ERROR_CODE;
+    return res;
+  }
+  IEventSrcInit(p_obj->p_tdm_acc_event_src);
+#endif
 
   p_obj->p_gyro_event_src = DataEventSrcAlloc();
   if (p_obj->p_gyro_event_src == NULL)
@@ -702,7 +871,12 @@ sys_error_code_t ISM330BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fun
 #endif
   memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
   p_obj->acc_id = 0;
+#if ISM330BX_TDM_ENABLED
+  p_obj->tdm_acc_id = 1;
+  p_obj->gyro_id = 2;
+#else
   p_obj->gyro_id = 1;
+#endif
   p_obj->mlc_enable = FALSE;
   p_obj->prev_timestamp = 0.0f;
   p_obj->acc_samples_count = 0;
@@ -710,6 +884,15 @@ sys_error_code_t ISM330BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fun
   p_obj->fifo_level = 0;
   p_obj->samples_per_it = 0;
   p_obj->first_data_ready = 0;
+#if ISM330BX_TDM_ENABLED
+  memset(p_obj->p_tdm_dma_buff, 0, sizeof(p_obj->p_tdm_dma_buff));
+  p_obj->p_tdm_data_ptr = NULL;
+  p_obj->tdm_samples_count = 0u;
+  p_obj->tdm_prev_timestamp = 0.0f;
+  p_obj->tdm_half = 0u;
+  p_obj->tdm_running = FALSE;
+  s_tdm_task_obj = p_obj;
+#endif /* ISM330BX_TDM_ENABLED */
   _this->m_pfPMState2FuncMap = sTheClass.p_pm_state2func_map;
 
   *pTaskCode = AMTExRun;
@@ -750,6 +933,13 @@ sys_error_code_t ISM330BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
 
   if (NewPowerMode == E_POWER_MODE_SENSORS_ACTIVE)
   {
+#if ISM330BX_TDM_ENABLED
+    if (p_obj->pSAIConfig != NULL)
+    {
+      ISM330BXTaskConfigureSAIIrq(p_obj, FALSE);
+    }
+    p_obj->tdm_prev_timestamp = 0.0f;
+#endif /* ISM330BX_TDM_ENABLED */
     if (ISM330BXTaskSensorIsActive(p_obj))
     {
       SMMessage report =
@@ -774,6 +964,13 @@ sys_error_code_t ISM330BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
   {
     if (ActivePowerMode == E_POWER_MODE_SENSORS_ACTIVE)
     {
+#if ISM330BX_TDM_ENABLED
+      ISM330BXTaskStopTDM(p_obj);
+      if (p_obj->pSAIConfig != NULL)
+      {
+        ISM330BXTaskConfigureSAIIrq(p_obj, TRUE);
+      }
+#endif /* ISM330BX_TDM_ENABLED */
       if (ISM330BXTaskSensorIsActive(p_obj))
       {
         /* Deactivate the sensor */
@@ -786,8 +983,7 @@ sys_error_code_t ISM330BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -804,12 +1000,21 @@ sys_error_code_t ISM330BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
       {
         ISM330BXTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ISM330BX: -> STATE1\r\n"));
   }
   else if (NewPowerMode == E_POWER_MODE_SLEEP_1)
   {
+#if ISM330BX_TDM_ENABLED
+    ISM330BXTaskStopTDM(p_obj);
+    if (p_obj->pSAIConfig != NULL)
+    {
+      ISM330BXTaskConfigureSAIIrq(p_obj, TRUE);
+    }
+#endif /* ISM330BX_TDM_ENABLED */
     /* the MCU is going in stop so I put the sensor in low power
      from the INIT task */
     res = ISM330BXTaskEnterLowPowerMode(p_obj);
@@ -935,6 +1140,17 @@ uint8_t ISM330BXTask_vtblAccGetId(ISourceObservable *_this)
   return res;
 }
 
+#if ISM330BX_TDM_ENABLED
+uint8_t ISM330BXTask_vtblTdmAccGetId(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  uint8_t res = p_if_owner->tdm_acc_id;
+
+  return res;
+}
+#endif
+
 uint8_t ISM330BXTask_vtblGyroGetId(ISourceObservable *_this)
 {
   assert_param(_this != NULL);
@@ -960,6 +1176,16 @@ IEventSrc *ISM330BXTask_vtblAccGetEventSourceIF(ISourceObservable *_this)
 
   return p_if_owner->p_acc_event_src;
 }
+
+#if ISM330BX_TDM_ENABLED
+IEventSrc *ISM330BXTask_vtblTdmAccGetEventSourceIF(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+
+  return p_if_owner->p_tdm_acc_event_src;
+}
+#endif
 
 IEventSrc *ISM330BXTask_vtblGyroGetEventSourceIF(ISourceObservable *_this)
 {
@@ -1023,6 +1249,55 @@ EMData_t ISM330BXTask_vtblAccGetDataInfo(ISourceObservable *_this)
 
   return res;
 }
+
+#if ISM330BX_TDM_ENABLED
+sys_error_code_t ISM330BXTask_vtblTdmAccGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  sys_error_code_t res = SYS_NO_ERROR_CODE;
+
+  if ((p_measured == NULL) || (p_nominal == NULL))
+  {
+    res = SYS_INVALID_PARAMETER_ERROR_CODE;
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_INVALID_PARAMETER_ERROR_CODE);
+  }
+  else
+  {
+    *p_measured = p_if_owner->tdm_acc_sensor_status.type.mems.measured_odr;
+    *p_nominal = p_if_owner->tdm_acc_sensor_status.type.mems.odr;
+  }
+
+  return res;
+}
+
+float_t ISM330BXTask_vtblTdmAccGetFS(ISensorMems_t *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  float_t res = p_if_owner->tdm_acc_sensor_status.type.mems.fs;
+
+  return res;
+}
+
+float_t ISM330BXTask_vtblTdmAccGetSensitivity(ISensorMems_t *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  float_t res = p_if_owner->tdm_acc_sensor_status.type.mems.sensitivity;
+
+  return res;
+}
+
+EMData_t ISM330BXTask_vtblTdmAccGetDataInfo(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = (ISM330BXTask *)((uint32_t) _this - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  EMData_t res = p_if_owner->data_tdm_acc;
+
+  return res;
+}
+#endif
 
 sys_error_code_t ISM330BXTask_vtblGyroGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal)
 {
@@ -1153,6 +1428,13 @@ sys_error_code_t ISM330BXTask_vtblSensorSetODR(ISensorMems_t *_this, float_t odr
         p_if_owner->acc_sensor_status.type.mems.odr = odr;
         p_if_owner->acc_sensor_status.type.mems.measured_odr = 0.0f;
       }
+#if ISM330BX_TDM_ENABLED
+      else if (sensor_id == p_if_owner->tdm_acc_id)
+      {
+        p_if_owner->tdm_acc_sensor_status.type.mems.odr = odr;
+        p_if_owner->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+      }
+#endif
       else if (sensor_id == p_if_owner->gyro_id)
       {
         p_if_owner->gyro_sensor_status.type.mems.odr = odr;
@@ -1202,6 +1484,13 @@ sys_error_code_t ISM330BXTask_vtblSensorSetFS(ISensorMems_t *_this, float_t fs)
       p_if_owner->acc_sensor_status.type.mems.fs = fs;
       p_if_owner->acc_sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->acc_sensor_status.type.mems.fs;
     }
+#if ISM330BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.type.mems.fs = fs;
+      p_if_owner->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->tdm_acc_sensor_status.type.mems.fs;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.type.mems.fs = fs;
@@ -1278,6 +1567,12 @@ sys_error_code_t ISM330BXTask_vtblSensorEnable(ISensor_t *_this)
     {
       p_if_owner->acc_sensor_status.is_active = TRUE;
     }
+#if ISM330BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.is_active = TRUE;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.is_active = TRUE;
@@ -1322,6 +1617,12 @@ sys_error_code_t ISM330BXTask_vtblSensorDisable(ISensor_t *_this)
     {
       p_if_owner->acc_sensor_status.is_active = FALSE;
     }
+#if ISM330BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.is_active = FALSE;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.is_active = FALSE;
@@ -1357,6 +1658,12 @@ boolean_t ISM330BXTask_vtblSensorIsEnabled(ISensor_t *_this)
   {
     res = p_if_owner->acc_sensor_status.is_active;
   }
+#if ISM330BX_TDM_ENABLED
+  else if (ISourceGetId((ISourceObservable *) _this) == p_if_owner->tdm_acc_id)
+  {
+    res = p_if_owner->tdm_acc_sensor_status.is_active;
+  }
+#endif
   else if (ISourceGetId((ISourceObservable *) _this) == p_if_owner->gyro_id)
   {
     res = p_if_owner->gyro_sensor_status.is_active;
@@ -1375,6 +1682,15 @@ SensorDescriptor_t ISM330BXTask_vtblAccGetDescription(ISensor_t *_this)
   ISM330BXTask *p_if_owner = ISM330BXTaskGetOwnerFromISensorIF(_this);
   return *p_if_owner->acc_sensor_descriptor;
 }
+
+#if ISM330BX_TDM_ENABLED
+SensorDescriptor_t ISM330BXTask_vtblTdmAccGetDescription(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = ISM330BXTaskGetOwnerFromISensorIF(_this);
+  return *p_if_owner->tdm_acc_sensor_descriptor;
+}
+#endif
 
 SensorDescriptor_t ISM330BXTask_vtblGyroGetDescription(ISensor_t *_this)
 {
@@ -1397,6 +1713,15 @@ SensorStatus_t ISM330BXTask_vtblAccGetStatus(ISensor_t *_this)
   return p_if_owner->acc_sensor_status;
 }
 
+#if ISM330BX_TDM_ENABLED
+SensorStatus_t ISM330BXTask_vtblTdmAccGetStatus(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = ISM330BXTaskGetOwnerFromISensorIF(_this);
+  return p_if_owner->tdm_acc_sensor_status;
+}
+#endif
+
 SensorStatus_t ISM330BXTask_vtblGyroGetStatus(ISensor_t *_this)
 {
   assert_param(_this != NULL);
@@ -1417,6 +1742,15 @@ SensorStatus_t *ISM330BXTask_vtblAccGetStatusPointer(ISensor_t *_this)
   ISM330BXTask *p_if_owner = ISM330BXTaskGetOwnerFromISensorIF(_this);
   return &p_if_owner->acc_sensor_status;
 }
+
+#if ISM330BX_TDM_ENABLED
+SensorStatus_t *ISM330BXTask_vtblTdmAccGetStatusPointer(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  ISM330BXTask *p_if_owner = ISM330BXTaskGetOwnerFromISensorIF(_this);
+  return &p_if_owner->tdm_acc_sensor_status;
+}
+#endif
 
 SensorStatus_t *ISM330BXTask_vtblGyroGetStatusPointer(ISensor_t *_this)
 {
@@ -1772,6 +2106,36 @@ static sys_error_code_t ISM330BXTaskExecuteStepDatalog(AManagedTask *_this)
         break;
       }
 
+#if ISM330BX_TDM_ENABLED
+      case SM_MESSAGE_ID_DATA_READY_TDM:
+      {
+        if (p_obj->tdm_running && (report.sensorDataReadyMessage.half != 0u))
+        {
+          p_obj->tdm_half = report.sensorDataReadyMessage.half;
+          res = ISM330BXTaskSensorReadDataTDM(p_obj);
+
+          if (!SYS_IS_ERROR_CODE(res) && p_obj->tdm_acc_sensor_status.is_active && (p_obj->tdm_samples_count > 0u))
+          {
+            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
+            double_t delta_timestamp = timestamp - p_obj->tdm_prev_timestamp;
+            p_obj->tdm_prev_timestamp = timestamp;
+
+            if (delta_timestamp > 0.0)
+            {
+              p_obj->tdm_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->tdm_samples_count / (float_t)delta_timestamp;
+            }
+
+            DataEvent_t evt_acc;
+            EMD_Init(&p_obj->data_tdm_acc, (uint8_t *)p_obj->p_tdm_data_ptr, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                     p_obj->tdm_samples_count, 3);
+            DataEventInit((IEvent *) &evt_acc, p_obj->p_tdm_acc_event_src, &p_obj->data_tdm_acc, timestamp, p_obj->tdm_acc_id);
+            IEventSrcSendEvent(p_obj->p_tdm_acc_event_src, (IEvent *) &evt_acc, NULL);
+          }
+        }
+        break;
+      }
+#endif /* ISM330BX_TDM_ENABLED */
+
       case SM_MESSAGE_ID_SENSOR_CMD:
       {
         switch (report.sensorMessage.nCmdID)
@@ -1800,6 +2164,17 @@ static sys_error_code_t ISM330BXTaskExecuteStepDatalog(AManagedTask *_this)
                   ISM330BXTaskConfigureIrqPin(p_obj, FALSE);
                 }
               }
+
+#if ISM330BX_TDM_ENABLED
+              if (p_obj->tdm_acc_sensor_status.is_active)
+              {
+                sys_error_code_t tdm_res = ISM330BXTaskStartTDM(p_obj);
+                if (SYS_IS_ERROR_CODE(tdm_res))
+                {
+                  res = tdm_res;
+                }
+              }
+#endif /* ISM330BX_TDM_ENABLED */
             }
             if (!SYS_IS_ERROR_CODE(res))
             {
@@ -2240,17 +2615,18 @@ static sys_error_code_t ISM330BXTaskSensorInit(ISM330BXTask *_this)
   }
   else
   {
+    ism330bx_mlc_set(p_sensor_drv, ISM330BX_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
       sys_error_handler();
     }
   }
+
 #if ISM330BX_FIFO_ENABLED
   uint8_t reg[2];
   /* Check FIFO_WTM_IA and fifo level. We do not use PID in order to avoid reading one register twice */
@@ -2278,7 +2654,7 @@ static sys_error_code_t ISM330BXTaskSensorInit(ISM330BXTask *_this)
   }
   else if (_this->gyro_sensor_status.is_active)
   {
-    _this->ism330bx_task_cfg_timer_period_ms = (uint16_t)(_this->acc_sensor_status.type.mems.odr);
+    _this->ism330bx_task_cfg_timer_period_ms = (uint16_t)(_this->gyro_sensor_status.type.mems.odr);
   }
   else
   {
@@ -2397,6 +2773,9 @@ static sys_error_code_t ISM330BXTaskSensorReadData(ISM330BXTask *_this)
         int16_t *p16_src = (int16_t *) _this->p_fast_sensor_data_buff;
         int16_t *p16_dest = (int16_t *) _this->p_fast_sensor_data_buff;
         int16_t p_acc[3];
+
+        _this->acc_samples_count = 0;
+        _this->gyro_samples_count = 0;
 
         uint8_t *p_tag = (uint8_t *) p16_src;
 
@@ -2533,13 +2912,34 @@ static sys_error_code_t ISM330BXTaskSensorReadData(ISM330BXTask *_this)
   return res;
 }
 
-uint8_t ism330bx_mlc_output[4];
+#if ISM330BX_TDM_ENABLED
+static sys_error_code_t ISM330BXTaskSensorReadDataTDM(ISM330BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->tdm_running && ((_this->tdm_half == 1u) || (_this->tdm_half == 2u)))
+  {
+    uint16_t half_words = (uint16_t)(ISM330BX_TDM_DMA_SAMPLES / 2u);
+    uint16_t offset = (_this->tdm_half == 1u) ? 0u : half_words;
+
+    _this->p_tdm_data_ptr = &_this->p_tdm_dma_buff[offset];
+    _this->tdm_samples_count = (uint16_t)(half_words / 3u);
+
+    return SYS_NO_ERROR_CODE;
+  }
+
+  _this->tdm_samples_count = 0u;
+  return SYS_BASE_ERROR_CODE;
+}
+#endif /* ISM330BX_TDM_ENABLED */
+
 static sys_error_code_t ISM330BXTaskSensorReadMLC(ISM330BXTask *_this)
 {
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_BASE_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
   ism330bx_mlc_status_t mlc_status;
+  uint8_t ism330bx_mlc_output[4];
 
   if (_this->mlc_enable)
   {
@@ -2572,6 +2972,10 @@ static sys_error_code_t ISM330BXTaskSensorRegister(ISM330BXTask *_this)
   ISensor_t *acc_if = (ISensor_t *) ISM330BXTaskGetAccSensorIF(_this);
   _this->acc_id = SMAddSensor(acc_if);
 #endif
+#if ISM330BX_TDM_ENABLED
+  ISensor_t *tdm_acc_if = (ISensor_t *) ISM330BXTaskGetTdmAccSensorIF(_this);
+  _this->tdm_acc_id = SMAddSensor(tdm_acc_if);
+#endif
 #if !ISM330BX_GYRO_DISABLED
   ISensor_t *gyro_if = (ISensor_t *) ISM330BXTaskGetGyroSensorIF(_this);
   _this->gyro_id = SMAddSensor(gyro_if);
@@ -2600,6 +3004,17 @@ static sys_error_code_t ISM330BXTaskSensorInitTaskParams(ISM330BXTask *_this)
   EMD_Init(&_this->data_acc, _this->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
 #else
   EMD_Init(&_this->data_acc, _this->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
+#endif
+
+#if ISM330BX_TDM_ENABLED
+  /* TDM ACCELEROMETER STATUS */
+  _this->tdm_acc_sensor_status.isensor_class = ISENSOR_CLASS_MEMS;
+  _this->tdm_acc_sensor_status.is_active = FALSE;
+  _this->tdm_acc_sensor_status.type.mems.fs = 8.0f;
+  _this->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->tdm_acc_sensor_status.type.mems.fs;
+  _this->tdm_acc_sensor_status.type.mems.odr = 8000.0f;
+  _this->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+  EMD_Init(&_this->data_tdm_acc, (uint8_t *)_this->p_tdm_dma_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
 #endif
 
   /* GYROSCOPE STATUS */
@@ -2686,13 +3101,9 @@ static sys_error_code_t ISM330BXTaskSensorSetODR(ISM330BXTask *_this, SMMessage 
       {
         odr = 1920.0f;
       }
-      else if (odr < 3841.0f)
-      {
-        odr = 3840.0f;
-      }
       else
       {
-        odr = 7680;
+        odr = 3840.0f;
       }
     }
 
@@ -2702,6 +3113,21 @@ static sys_error_code_t ISM330BXTaskSensorSetODR(ISM330BXTask *_this, SMMessage 
       _this->acc_sensor_status.type.mems.measured_odr = 0.0f;
     }
   }
+#if ISM330BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    if (odr != 8000.0f)
+    {
+      res = SYS_TASK_INVALID_CALL_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_TASK_INVALID_CALL_ERROR_CODE);
+    }
+    else
+    {
+      _this->tdm_acc_sensor_status.type.mems.odr = odr;
+      _this->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+    }
+  }
+#endif /* ISM330BX_TDM_ENABLED */
   else if (id == _this->gyro_id)
   {
     if (odr < 1.0f)
@@ -2752,13 +3178,9 @@ static sys_error_code_t ISM330BXTaskSensorSetODR(ISM330BXTask *_this, SMMessage 
       {
         odr = 1920.0f;
       }
-      else if (odr < 3841.0f)
-      {
-        odr = 3840.0f;
-      }
       else
       {
-        odr = 7680;
+        odr = 3840.0f;
       }
     }
 
@@ -2816,6 +3238,25 @@ static sys_error_code_t ISM330BXTaskSensorSetFS(ISM330BXTask *_this, SMMessage r
     _this->acc_sensor_status.type.mems.fs = fs;
     _this->acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->acc_sensor_status.type.mems.fs;
   }
+#if ISM330BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    if (fs < 3.0f)
+    {
+      fs = 2.0f;
+    }
+    else if (fs < 5.0f)
+    {
+      fs = 4.0f;
+    }
+    else
+    {
+      fs = 8.0f;
+    }
+    _this->tdm_acc_sensor_status.type.mems.fs = fs;
+    _this->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->tdm_acc_sensor_status.type.mems.fs;
+  }
+#endif /* ISM330BX_TDM_ENABLED */
   else if (id == _this->gyro_id)
   {
     if (fs < 126.0f)
@@ -2920,6 +3361,12 @@ static sys_error_code_t ISM330BXTaskSensorEnable(ISM330BXTask *_this, SMMessage 
     _this->mlc_enable = FALSE;
     _this->mlc_sensor_status.is_active = FALSE;
   }
+#if ISM330BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    _this->tdm_acc_sensor_status.is_active = TRUE;
+  }
+#endif
   else if (id == _this->gyro_id)
   {
     _this->gyro_sensor_status.is_active = TRUE;
@@ -2958,6 +3405,13 @@ static sys_error_code_t ISM330BXTaskSensorDisable(ISM330BXTask *_this, SMMessage
     _this->mlc_enable = FALSE;
     _this->mlc_sensor_status.is_active = FALSE;
   }
+#if ISM330BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    _this->tdm_acc_sensor_status.is_active = FALSE;
+    ISM330BXTaskStopTDM(_this);
+  }
+#endif
   else if (id == _this->gyro_id)
   {
     _this->gyro_sensor_status.is_active = FALSE;
@@ -2983,7 +3437,13 @@ static sys_error_code_t ISM330BXTaskSensorDisable(ISM330BXTask *_this, SMMessage
 static boolean_t ISM330BXTaskSensorIsActive(const ISM330BXTask *_this)
 {
   assert_param(_this != NULL);
-  return (_this->acc_sensor_status.is_active || _this->gyro_sensor_status.is_active);
+  return (
+           _this->acc_sensor_status.is_active
+#if ISM330BX_TDM_ENABLED
+           || _this->tdm_acc_sensor_status.is_active
+#endif
+           || _this->gyro_sensor_status.is_active
+         );
 }
 
 static sys_error_code_t ISM330BXTaskEnterLowPowerMode(const ISM330BXTask *_this)
@@ -2991,6 +3451,10 @@ static sys_error_code_t ISM330BXTaskEnterLowPowerMode(const ISM330BXTask *_this)
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
+
+#if ISM330BX_TDM_ENABLED
+  ISM330BXTaskStopTDM((ISM330BXTask *)_this);
+#endif /* ISM330BX_TDM_ENABLED */
 
   ism330bx_xl_data_rate_t ism330bx_xl_data_rate = ISM330BX_XL_ODR_OFF;
   ism330bx_fifo_xl_batch_t ism330bx_fifo_xl_batch = ISM330BX_XL_NOT_BATCHED;
@@ -3065,6 +3529,34 @@ static sys_error_code_t ISM330BXTaskConfigureMLCPin(const ISM330BXTask *_this, b
   return res;
 }
 
+#if ISM330BX_TDM_ENABLED
+static sys_error_code_t ISM330BXTaskConfigureSAIIrq(const ISM330BXTask *_this, boolean_t LowPower)
+{
+  assert_param(_this != NULL);
+  sys_error_code_t res = SYS_NO_ERROR_CODE;
+
+  if (_this->pSAIConfig == NULL)
+  {
+    return res;
+  }
+
+  if (!LowPower)
+  {
+    HAL_NVIC_EnableIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_EnableIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+  }
+  else
+  {
+    HAL_NVIC_DisableIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_ClearPendingIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_DisableIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+    HAL_NVIC_ClearPendingIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+  }
+
+  return res;
+}
+#endif /* ISM330BX_TDM_ENABLED */
+
 static inline ISM330BXTask *ISM330BXTaskGetOwnerFromISensorIF(ISensor_t *p_if)
 {
   assert_param(p_if != NULL);
@@ -3083,6 +3575,14 @@ static inline ISM330BXTask *ISM330BXTaskGetOwnerFromISensorIF(ISensor_t *p_if)
     /* then the virtual function has been called from the acc IF  */
     p_if_owner = (ISM330BXTask *)((uint32_t) p_if - offsetof(ISM330BXTask, acc_sensor_if));
   }
+#if ISM330BX_TDM_ENABLED
+  if (!(p_if_owner->tdm_acc_sensor_if.vptr == &sTheClass.tdm_acc_sensor_if_vtbl)
+      || !(p_if_owner->super.vptr == &sTheClass.vtbl))
+  {
+    /* then the virtual function has been called from the TDM acc IF  */
+    p_if_owner = (ISM330BXTask *)((uint32_t) p_if - offsetof(ISM330BXTask, tdm_acc_sensor_if));
+  }
+#endif
 
   return p_if_owner;
 }
@@ -3101,15 +3601,14 @@ static void ISM330BXTaskTimerCallbackFunction(ULONG param)
   ISM330BXTask *p_obj = (ISM330BXTask *) param;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void ISM330BXTaskMLCTimerCallbackFunction(ULONG param)
@@ -3117,15 +3616,14 @@ static void ISM330BXTaskMLCTimerCallbackFunction(ULONG param)
   ISM330BXTask *p_obj = (ISM330BXTask *) param;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -3136,6 +3634,7 @@ void ISM330BXTask_EXTI_Callback(uint16_t nPin)
   TX_QUEUE *p_queue;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
   p_val = MTMap_FindByKey(&sTheClass.task_map, (uint32_t) nPin);
@@ -3156,6 +3655,7 @@ void INT2_ISM330BX_EXTI_Callback(uint16_t nPin)
   TX_QUEUE *p_queue;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
   p_val = MTMap_FindByKey(&sTheClass.task_map, (uint32_t) nPin);
@@ -3169,6 +3669,154 @@ void INT2_ISM330BX_EXTI_Callback(uint16_t nPin)
     }
   }
 }
+
+#if ISM330BX_TDM_ENABLED
+static sys_error_code_t ISM330BXTaskConfigureTDM(ISM330BXTask *_this)
+{
+  assert_param(_this != NULL);
+  stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
+
+  ism330bx_tdm_xl_axis_t tdm_axes =
+  {
+    .x = 1u,
+    .y = 1u,
+    .z = 1u
+  };
+
+  ism330bx_tdm_xl_full_scale_t tdm_fs = ISM330BX_TDM_2g;
+
+  if (_this->acc_sensor_status.type.mems.fs < 3.0f)
+  {
+    tdm_fs = ISM330BX_TDM_2g;
+  }
+  else if (_this->acc_sensor_status.type.mems.fs < 5.0f)
+  {
+    tdm_fs = ISM330BX_TDM_4g;
+  }
+  else
+  {
+    tdm_fs = ISM330BX_TDM_8g;
+    _this->acc_sensor_status.type.mems.fs = 8.0f;
+  }
+
+  if (ism330bx_xl_mode_set(p_sensor_drv, ISM330BX_XL_HIGH_PERFORMANCE_TDM_MD) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (ism330bx_tdm_wclk_bclk_set(p_sensor_drv, ISM330BX_WCLK_8kHZ_BCLK_2048kHz) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (ism330bx_tdm_axis_order_set(p_sensor_drv, ISM330BX_TDM_ORDER_XYZ) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (ism330bx_tdm_xl_axis_set(p_sensor_drv, tdm_axes) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (ism330bx_tdm_xl_full_scale_set(p_sensor_drv, tdm_fs) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  return SYS_NO_ERROR_CODE;
+}
+
+static sys_error_code_t ISM330BXTaskStartTDM(ISM330BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->pCSConfig == NULL)
+  {
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (_this->pSAIConfig == NULL)
+  {
+    return SYS_INVALID_PARAMETER_ERROR_CODE;
+  }
+
+  if (!_this->tdm_acc_sensor_status.is_active)
+  {
+    ISM330BXTaskStopTDM(_this);
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (_this->tdm_running)
+  {
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (ISM330BXTaskConfigureTDM(_this) != SYS_NO_ERROR_CODE)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  if (HAL_SAI_Receive_DMA(_this->pSAIConfig->p_sai_handle, (uint8_t *)_this->p_tdm_dma_buff,
+                          ISM330BX_TDM_DMA_SAMPLES) != HAL_OK)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  _this->tdm_half = 0u;
+  _this->tdm_samples_count = 0u;
+  _this->tdm_running = TRUE;
+
+  return SYS_NO_ERROR_CODE;
+}
+
+static void ISM330BXTaskStopTDM(ISM330BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->tdm_running)
+  {
+    if (_this->pSAIConfig != NULL)
+    {
+      (void) HAL_SAI_DMAStop(_this->pSAIConfig->p_sai_handle);
+    }
+    _this->tdm_running = FALSE;
+    _this->tdm_half = 0u;
+    _this->tdm_samples_count = 0u;
+    _this->p_tdm_data_ptr = NULL;
+  }
+}
+
+void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
+{
+  if ((s_tdm_task_obj != NULL) && s_tdm_task_obj->tdm_running && (s_tdm_task_obj->pSAIConfig != NULL)
+      && (hsai == s_tdm_task_obj->pSAIConfig->p_sai_handle))
+  {
+    SMMessage report;
+    report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_TDM;
+    report.sensorDataReadyMessage.half = 1u;
+    report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
+
+    if (TX_SUCCESS != tx_queue_send(&s_tdm_task_obj->in_queue, &report, TX_NO_WAIT))
+    {
+      sys_error_handler();
+    }
+  }
+}
+
+void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
+{
+  if ((s_tdm_task_obj != NULL) && s_tdm_task_obj->tdm_running && (s_tdm_task_obj->pSAIConfig != NULL)
+      && (hsai == s_tdm_task_obj->pSAIConfig->p_sai_handle))
+  {
+    SMMessage report;
+    report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_TDM;
+    report.sensorDataReadyMessage.half = 2u;
+    report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
+
+    if (TX_SUCCESS != tx_queue_send(&s_tdm_task_obj->in_queue, &report, TX_NO_WAIT))
+    {
+      sys_error_handler();
+    }
+  }
+}
+#endif /* ISM330BX_TDM_ENABLED */
 
 static sys_error_code_t ISM330BX_ODR_Sync(ISM330BXTask *_this)
 {

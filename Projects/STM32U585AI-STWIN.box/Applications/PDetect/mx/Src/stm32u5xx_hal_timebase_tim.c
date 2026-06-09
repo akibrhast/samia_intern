@@ -27,6 +27,7 @@
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef        htim6;
 /* Private function prototypes -----------------------------------------------*/
+void TimeBase_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -44,6 +45,7 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   uint32_t              uwTimclock = 0;
   uint32_t              uwPrescalerValue = 0;
   uint32_t              pFLatency;
+
   HAL_StatusTypeDef     status;
 
   /* Enable TIM6 clock */
@@ -62,12 +64,11 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   htim6.Instance = TIM6;
 
   /* Initialize TIMx peripheral as follow:
-
-  + Period = [(TIM6CLK/1000) - 1]. to have a (1/1000) s time base.
-  + Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
-  + ClockDivision = 0
-  + Counter direction = Up
-  */
+   * Period = [(TIM6CLK/1000) - 1]. to have a (1/1000) s time base.
+   * Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
+   * ClockDivision = 0
+   * Counter direction = Up
+   */
   htim6.Init.Period = (1000000U / 1000U) - 1U;
   htim6.Init.Prescaler = uwPrescalerValue;
   htim6.Init.ClockDivision = 0;
@@ -93,6 +94,7 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
     }
   }
 
+  HAL_TIM_RegisterCallback(&htim6, HAL_TIM_PERIOD_ELAPSED_CB_ID, TimeBase_TIM_PeriodElapsedCallback);
   /* Enable the TIM6 global Interrupt */
   HAL_NVIC_EnableIRQ(TIM6_IRQn);
 
@@ -122,5 +124,22 @@ void HAL_ResumeTick(void)
 {
   /* Enable TIM6 Update interrupt */
   __HAL_TIM_ENABLE_IT(&htim6, TIM_IT_UPDATE);
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim TIM handle
+  * @retval None
+ */
+
+void TimeBase_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(htim);
+
+  HAL_IncTick();
 }
 

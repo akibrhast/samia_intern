@@ -97,6 +97,9 @@ typedef struct _ABusConnector
     * Customizable optional pointer.
     */
   void *pxHandle;
+
+  /** private data **/
+  void *priv_data;
 } ABusConnector;
 
 
@@ -117,7 +120,7 @@ struct _ABusIF
   uint16_t m_nWhoAmI;
 
   /**
-    * TODO: STF - do I need this ?
+    *
     */
   struct _IBus *m_pxBus;
 
@@ -183,6 +186,7 @@ sys_error_code_t ABusIFInit(ABusIF *_this, uint16_t nWhoAmI)
   _this->m_xConnector.pfWriteReg = ABusIFNullRW;
   _this->m_xConnector.pfDelay = NULL;
   _this->m_xConnector.pxHandle = NULL;
+  _this->m_xConnector.priv_data = NULL;
 
   return SYS_NO_ERROR_CODE;
 }

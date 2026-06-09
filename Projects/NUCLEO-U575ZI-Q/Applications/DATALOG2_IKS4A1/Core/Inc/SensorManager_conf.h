@@ -29,10 +29,6 @@
 #define LIS2DUXS12_FIFO_ENABLED          1
 #define LSM6DSV16X_FIFO_ENABLED          1
 
-#define LIS2DUXS12_MLC_DISABLED          1
-//#define LSM6DSO16IS_ISPU_DISABLED        1
-//#define LSM6DSV16X_MLC_DISABLED          1
-
 //#define HSD_USE_DUMMY_DATA               1
 
 

@@ -203,6 +203,14 @@ void EXTI3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles EXTI Line9 interrupt.
+  */
+void EXTI9_IRQHandler(void)
+{
+  ExtiDefISR(DIL_INT1_Pin);
+}
+
+/**
   * @brief This function handles EXTI Line11 interrupt.
   */
 void EXTI11_IRQHandler(void)

@@ -2470,6 +2470,9 @@
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</name>
                     </file>
                     <file>
+                        <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</name>
+                    </file>
+                    <file>
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusTask.c</name>
                     </file>
                     <file>
@@ -2647,9 +2650,6 @@
                         <name>$PROJ_DIR$\..\mx\Inc\main.h</name>
                     </file>
                     <file>
-                        <name>$PROJ_DIR$\..\mx\Inc\memorymap.h</name>
-                    </file>
-                    <file>
                         <name>$PROJ_DIR$\..\mx\Inc\mx.h</name>
                     </file>
                     <file>
@@ -2687,9 +2687,6 @@
                     </file>
                     <file>
                         <name>$PROJ_DIR$\..\mx\Src\icache.c</name>
-                    </file>
-                    <file>
-                        <name>$PROJ_DIR$\..\mx\Src\memorymap.c</name>
                     </file>
                     <file>
                         <name>$PROJ_DIR$\..\mx\Src\mx.c</name>

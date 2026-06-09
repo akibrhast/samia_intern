@@ -447,7 +447,6 @@ sys_error_code_t ble_sendMSG_wait(void)
 {
   sys_error_code_t res = SYS_NO_ERROR_CODE;
 
-  //TODO: STF.Port - how to check the sem is initialized ??
   if (TX_SUCCESS != tx_semaphore_get(&sObj.send_semaphore, TX_WAIT_FOREVER))
   {
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_UNDEFINED_ERROR_CODE);
@@ -486,7 +485,6 @@ static sys_error_code_t ble_sendMSG_resume(void)
 {
   sys_error_code_t res = SYS_NO_ERROR_CODE;
 
-  //TODO: STF.Port - how to check the sem is initialized ??
   if (TX_SUCCESS != tx_semaphore_put(&sObj.send_semaphore))
   {
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_UNDEFINED_ERROR_CODE);
@@ -500,7 +498,6 @@ static sys_error_code_t ble_receiveMSG_wait(void)
 {
   sys_error_code_t res = SYS_NO_ERROR_CODE;
 
-  //TODO: STF.Port - how to check the sem is initialized ??
   if (TX_SUCCESS != tx_semaphore_get(&sObj.receive_semaphore, TX_WAIT_FOREVER))
   {
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_UNDEFINED_ERROR_CODE);
@@ -514,7 +511,6 @@ static sys_error_code_t ble_receiveMSG_resume(void)
 {
   sys_error_code_t res = SYS_NO_ERROR_CODE;
 
-  //TODO: STF.Port - how to check the sem is initialized ??
   if (TX_SUCCESS != tx_semaphore_put(&sObj.receive_semaphore))
   {
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_UNDEFINED_ERROR_CODE);

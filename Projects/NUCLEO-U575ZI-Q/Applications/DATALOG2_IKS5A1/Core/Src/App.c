@@ -71,8 +71,8 @@
 #include "Ism6hg256x_H_Acc_PnPL.h"
 #include "Ism6hg256x_Gyro_PnPL.h"
 #include "Ism6hg256x_Mlc_PnPL.h"
-#include "Iis3dwb10is_Ext_Acc_PnPL.h"
-#include "Iis3dwb10is_Ext_Ispu_PnPL.h"
+#include "Iis3dwb10is_Acc_PnPL.h"
+#include "Iis3dwb10is_Ispu_PnPL.h"
 #include "Automode_PnPL.h"
 #include "Log_Controller_PnPL.h"
 #include "Tags_Info_PnPL.h"
@@ -80,8 +80,9 @@
 #include "Firmware_Info_PnPL.h"
 #include "Deviceinformation_PnPL.h"
 
+
 static IPnPLComponent_t *pIis2dulpx_Acc_PnPLObj = NULL;
-//static IPnPLComponent_t *pIIS2DULPX_Mlc_PnPLObj = NULL;
+static IPnPLComponent_t *pIis2dulpx_Mlc_PnPLObj = NULL;
 static IPnPLComponent_t *pIis2mdc_Mag_PnPLObj = NULL;
 static IPnPLComponent_t *pIlps22qs_Press_PnPLObj = NULL;
 static IPnPLComponent_t *pIsm330is_Acc_PnPLObj = NULL;
@@ -145,7 +146,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
 {
   assert_param(pAppContext);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
-  boolean_t ext_iis3dwb10is = FALSE;
+  uint8_t ext_iis3dwb10is = 0;
 
   /* PnPL thread safe mutex creation */
   tx_mutex_create(&pnpl_mutex, "PnPL Mutex", TX_INHERIT);
@@ -162,15 +163,23 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sDatalogAppObj = DatalogAppTaskAlloc();
   sI2CBusObj = I2CBusTaskAlloc(&MX_I2C1InitParams);
   sSPIBusObj = SPIBusTaskAlloc(&MX_SPI1InitParams);
-  sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_IIS2DULPX_INT1InitParams, NULL, NULL);
+  sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_IIS2DULPX_INT1InitParams, NULL, NULL, false);
   sIIS2MDCObj = IIS2MDCTaskAlloc(&MX_GPIO_IIS2MDC_DRDYInitParams, NULL);
-  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL);
+  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL, false);
   sISM330ISObj = ISM330ISTaskAlloc(&MX_GPIO_ISM330IS_INT2InitParams, NULL, NULL);
-  sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_ISM6HG256X_INT1InitParams, NULL, NULL);
+  sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_ISM6HG256X_INT1InitParams, NULL, NULL, false);
 
-  if (ext_iis3dwb10is)
+  if (ext_iis3dwb10is == IIS3DWB10IS_DIL24)
   {
-    sIIS3DWB10ISExtObj = IIS3DWB10ISTaskAlloc(NULL/*&MX_GPIO_INT1_EXTERNAL_InitParams*/, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sIIS3DWB10ISExtObj = IIS3DWB10ISTaskAlloc(&MX_GPIO_INT1_EXTERNALInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+  }
+  else if (ext_iis3dwb10is == IIS3DWB10IS_FLEX)
+  {
+    sIIS3DWB10ISExtObj = IIS3DWB10ISTaskAlloc(&MX_GPIO_USER_INTInitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+  }
+  else
+  {
+    /* IIS3DWB10IS not found, do not create the task */
   }
 
   /************ Add the task object to the context ************/
@@ -184,13 +193,13 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   res = ACAddTask(pAppContext, (AManagedTask *) sISM330ISObj);
   res = ACAddTask(pAppContext, (AManagedTask *) sISM6HG256XObj);
 
-  if (ext_iis3dwb10is)
+  if (ext_iis3dwb10is != NO_IIS3DWB10IS)
   {
     res = ACAddTask(pAppContext, (AManagedTask *) sIIS3DWB10ISExtObj);
   }
 
   pIis2dulpx_Acc_PnPLObj = Iis2dulpx_Acc_PnPLAlloc();
-//  pIIS2DULPX_Mlc_PnPLObj = IIS2DULPX_Mlc_PnPLAlloc();
+  pIis2dulpx_Mlc_PnPLObj = Iis2dulpx_Mlc_PnPLAlloc();
   pIis2mdc_Mag_PnPLObj = Iis2mdc_Mag_PnPLAlloc();
   pIlps22qs_Press_PnPLObj = Ilps22qs_Press_PnPLAlloc();
   pIsm330is_Acc_PnPLObj = Ism330is_Acc_PnPLAlloc();
@@ -208,10 +217,10 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   pDeviceinformation_PnPLObj = Deviceinformation_PnPLAlloc();
   pAutomode_PnPLObj = Automode_PnPLAlloc();
 
-  if (ext_iis3dwb10is)
+  if (ext_iis3dwb10is != NO_IIS3DWB10IS)
   {
-    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Ext_Acc_PnPLAlloc();
-    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ext_Ispu_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Acc_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ispu_PnPLAlloc();
   }
 
   return res;
@@ -240,7 +249,7 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   /************ Connect the Sensor events to the DatalogAppTask ************/
   IEventListener *DatalogAppListener = DatalogAppTask_GetEventListenerIF((DatalogAppTask *) sDatalogAppObj);
   IEventSrcAddEventListener(IIS2DULPXTaskGetEventSrcIF((IIS2DULPXTask *) sIIS2DULPXObj), DatalogAppListener);
-//  IEventSrcAddEventListener(IIS2DULPXTaskGetMlcEventSrcIF((IIS2DULPXTask *) sIIS2DULPXObj), DatalogAppListener);
+  IEventSrcAddEventListener(IIS2DULPXTaskGetMlcEventSrcIF((IIS2DULPXTask *) sIIS2DULPXObj), DatalogAppListener);
   IEventSrcAddEventListener(IIS2MDCTaskGetMagEventSrcIF((IIS2MDCTask *) sIIS2MDCObj), DatalogAppListener);
   IEventSrcAddEventListener(ILPS22QSTaskGetPressEventSrcIF((ILPS22QSTask *) sILPS22QSObj), DatalogAppListener);
   IEventSrcAddEventListener(ISM330ISTaskGetAccEventSrcIF((ISM330ISTask *) sISM330ISObj), DatalogAppListener);
@@ -265,10 +274,10 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   {
     DatalogAppTask_Set_ISM6HG256XMLC_IF((AManagedTask *) sISM6HG256XObj);
   }
-//  if (sIIS2DULPXObj)
-//  {
-//    DatalogAppTask_Set_IIS2DULPXMLC_IF((AManagedTask *) sIIS2DULPXObj);
-//  }
+  if (sIIS2DULPXObj)
+  {
+    DatalogAppTask_Set_IIS2DULPXMLC_IF((AManagedTask *) sIIS2DULPXObj);
+  }
   if (sIIS3DWB10ISExtObj)
   {
     DatalogAppTask_Set_IIS3DWB10ISExtMLC_IF((AManagedTask *) sIIS3DWB10ISExtObj);
@@ -288,7 +297,7 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
 
   /************ Sensor PnPL Components ************/
   Iis2dulpx_Acc_PnPLInit(pIis2dulpx_Acc_PnPLObj);
-//  IIS2DULPX_Mlc_PnPLInit(pIIS2DULPX_Mlc_PnPLObj);
+  Iis2dulpx_Mlc_PnPLInit(pIis2dulpx_Mlc_PnPLObj);
   Iis2mdc_Mag_PnPLInit(pIis2mdc_Mag_PnPLObj);
   Ilps22qs_Press_PnPLInit(pIlps22qs_Press_PnPLObj);
   Ism330is_Acc_PnPLInit(pIsm330is_Acc_PnPLObj);
@@ -300,9 +309,9 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
 
   if (sIIS3DWB10ISExtObj)
   {
-    Iis3dwb10is_Ext_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
-    iis3dwb10is_ext_acc_set_enable(true, NULL);
-    Iis3dwb10is_Ext_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
+    Iis3dwb10is_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
+    iis3dwb10is_acc_set_enable(true, NULL);
+    Iis3dwb10is_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
 
     iis2dulpx_acc_set_enable(false, NULL);
     iis2mdc_mag_set_enable(false, NULL);

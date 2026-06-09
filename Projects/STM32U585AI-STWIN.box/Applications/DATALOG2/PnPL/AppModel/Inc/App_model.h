@@ -80,8 +80,8 @@ extern "C" {
 #include "App_model_Iis2dulpx_Acc.h"
 #include "App_model_Iis2dulpx_Mlc.h"
 #include "App_model_Iis3dwb_Ext_Acc.h"
-#include "App_model_Iis3dwb10is_Ext_Acc.h"
-#include "App_model_Iis3dwb10is_Ext_Ispu.h"
+#include "App_model_Iis3dwb10is_Acc.h"
+#include "App_model_Iis3dwb10is_Ispu.h"
 #include "App_model_Ilps28qsw_Press.h"
 #include "App_model_Ism330bx_Acc.h"
 #include "App_model_Ism330bx_Gyro.h"
@@ -124,7 +124,7 @@ extern "C" {
 #define FORMAT_LEN 10U
 
 #define FW_VERSION_MAJOR    "3"
-#define FW_VERSION_MINOR    "2"
+#define FW_VERSION_MINOR    "3"
 #define FW_VERSION_PATCH    "0"
 
 /* Max BLE bandwidth for each sensor (in Byte) */
@@ -193,6 +193,7 @@ typedef struct _AppModel_t
   AcquisitionInfoModel_t acquisition_info_model;
   FirmwareInfoModel_t firmware_info_model;
   /* Insert here your custom App Model code */
+  bool iis2dulpx_mlc_ucf_valid;
   bool iis2iclx_mlc_ucf_valid;
   bool ism330bx_mlc_ucf_valid;
   bool ism330dhcx_mlc_ucf_valid;

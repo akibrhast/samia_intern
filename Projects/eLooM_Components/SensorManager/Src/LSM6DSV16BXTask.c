@@ -63,6 +63,10 @@
 #define LSM6DSV16BX_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LSM6DSV16BX_DYNAMIC_ADDR
+#define LSM6DSV16BX_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                   SYS_DEBUGF3(SYS_DBG_LSM6DSV16BX, level, message)
 
 #ifndef LSM6DSV16BX_TASK_CFG_I2C_ADDRESS
@@ -76,6 +80,10 @@
 #if (HSD_USE_DUMMY_DATA == 1)
 static int16_t dummyDataCounter_acc = 0;
 static int16_t dummyDataCounter_gyro = 0;
+#endif
+
+#if LSM6DSV16BX_TDM_ENABLED
+static LSM6DSV16BXTask *s_tdm_task_obj = NULL;
 #endif
 
 /**
@@ -92,6 +100,13 @@ typedef struct _LSM6DSV16BXTaskClass
     * Accelerometer IF virtual table.
     */
   const ISensorMems_vtbl acc_sensor_if_vtbl;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * TDM accelerometer IF virtual table.
+    */
+  const ISensorMems_vtbl tdm_acc_sensor_if_vtbl;
+#endif
 
   /**
     * Gyro IF virtual table.
@@ -112,6 +127,13 @@ typedef struct _LSM6DSV16BXTaskClass
     * Specifies accelerometer sensor capabilities.
     */
   const SensorDescriptor_t acc_class_descriptor;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * Specifies TDM accelerometer sensor capabilities.
+    */
+  const SensorDescriptor_t tdm_acc_class_descriptor;
+#endif
 
   /**
     * Specifies gyroscope sensor capabilities.
@@ -172,6 +194,10 @@ static sys_error_code_t LSM6DSV16BXTaskSensorInit(LSM6DSV16BXTask *_this);
   */
 static sys_error_code_t LSM6DSV16BXTaskSensorReadData(LSM6DSV16BXTask *_this);
 
+#if LSM6DSV16BX_TDM_ENABLED
+static sys_error_code_t LSM6DSV16BXTaskSensorReadDataTDM(LSM6DSV16BXTask *_this);
+#endif
+
 /**
   * Read the data from the mlc.
   *
@@ -216,6 +242,13 @@ static sys_error_code_t LSM6DSV16BXTaskEnterLowPowerMode(const LSM6DSV16BXTask *
 
 static sys_error_code_t LSM6DSV16BXTaskConfigureIrqPin(const LSM6DSV16BXTask *_this, boolean_t LowPower);
 static sys_error_code_t LSM6DSV16BXTaskConfigureMLCPin(const LSM6DSV16BXTask *_this, boolean_t LowPower);
+
+#if LSM6DSV16BX_TDM_ENABLED
+static sys_error_code_t LSM6DSV16BXTaskConfigureSAIIrq(const LSM6DSV16BXTask *_this, boolean_t LowPower);
+static sys_error_code_t LSM6DSV16BXTaskConfigureTDM(LSM6DSV16BXTask *_this);
+static sys_error_code_t LSM6DSV16BXTaskStartTDM(LSM6DSV16BXTask *_this);
+static void LSM6DSV16BXTaskStopTDM(LSM6DSV16BXTask *_this);
+#endif
 
 /**
   * Callback function called when the software timer expires.
@@ -326,6 +359,31 @@ static LSM6DSV16BXTaskClass_t sTheClass =
     LSM6DSV16BXTask_vtblSensorSetFifoWM
   },
 
+#if LSM6DSV16BX_TDM_ENABLED
+  /* class::tdm_acc_sensor_if_vtbl virtual table */
+  {
+    {
+      {
+        LSM6DSV16BXTask_vtblTdmAccGetId,
+        LSM6DSV16BXTask_vtblTdmAccGetEventSourceIF,
+        LSM6DSV16BXTask_vtblTdmAccGetDataInfo
+      },
+      LSM6DSV16BXTask_vtblSensorEnable,
+      LSM6DSV16BXTask_vtblSensorDisable,
+      LSM6DSV16BXTask_vtblSensorIsEnabled,
+      LSM6DSV16BXTask_vtblTdmAccGetDescription,
+      LSM6DSV16BXTask_vtblTdmAccGetStatus,
+      LSM6DSV16BXTask_vtblTdmAccGetStatusPointer
+    },
+    LSM6DSV16BXTask_vtblTdmAccGetODR,
+    LSM6DSV16BXTask_vtblTdmAccGetFS,
+    LSM6DSV16BXTask_vtblTdmAccGetSensitivity,
+    LSM6DSV16BXTask_vtblSensorSetODR,
+    LSM6DSV16BXTask_vtblSensorSetFS,
+    LSM6DSV16BXTask_vtblSensorSetFifoWM
+  },
+#endif
+
   /* class::gyro_sensor_if_vtbl virtual table */
   {
     {
@@ -385,6 +443,14 @@ static LSM6DSV16BXTaskClass_t sTheClass =
     COM_TYPE_ACC
   },
 
+#if LSM6DSV16BX_TDM_ENABLED
+  /* TDM ACCELEROMETER DESCRIPTOR */
+  {
+    "lsm6dsv16bx_tdm",
+    COM_TYPE_ACC
+  },
+#endif
+
   /* GYROSCOPE DESCRIPTOR */
   {
     "lsm6dsv16bx",
@@ -415,6 +481,13 @@ ISourceObservable *LSM6DSV16BXTaskGetAccSensorIF(LSM6DSV16BXTask *_this)
   return (ISourceObservable *) & (_this->acc_sensor_if);
 }
 
+#if LSM6DSV16BX_TDM_ENABLED
+ISourceObservable *LSM6DSV16BXTaskGetTdmAccSensorIF(LSM6DSV16BXTask *_this)
+{
+  return (ISourceObservable *) & (_this->tdm_acc_sensor_if);
+}
+#endif
+
 ISourceObservable *LSM6DSV16BXTaskGetGyroSensorIF(LSM6DSV16BXTask *_this)
 {
   return (ISourceObservable *) & (_this->gyro_sensor_if);
@@ -430,7 +503,11 @@ ISensorLL_t *LSM6DSV16BXTaskGetSensorLLIF(LSM6DSV16BXTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                     const void *pSAIConfig,
+#endif
+                                     boolean_t i3c_flag)
 {
   LSM6DSV16BXTask *p_new_obj = SysAlloc(sizeof(LSM6DSV16BXTask));
 
@@ -441,18 +518,31 @@ AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCCon
 
     p_new_obj->super.vptr = &sTheClass.vtbl;
     p_new_obj->acc_sensor_if.vptr = &sTheClass.acc_sensor_if_vtbl;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_new_obj->tdm_acc_sensor_if.vptr = &sTheClass.tdm_acc_sensor_if_vtbl;
+#endif
     p_new_obj->gyro_sensor_if.vptr = &sTheClass.gyro_sensor_if_vtbl;
     p_new_obj->mlc_sensor_if.vptr = &sTheClass.mlc_sensor_if_vtbl;
     p_new_obj->sensor_ll_if.vptr = &sTheClass.sensor_ll_if_vtbl;
     p_new_obj->acc_sensor_descriptor = &sTheClass.acc_class_descriptor;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_new_obj->tdm_acc_sensor_descriptor = &sTheClass.tdm_acc_class_descriptor;
+#endif
     p_new_obj->gyro_sensor_descriptor = &sTheClass.gyro_class_descriptor;
     p_new_obj->mlc_sensor_descriptor = &sTheClass.mlc_class_descriptor;
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_new_obj->pSAIConfig = (MX_SAIParams_t *) pSAIConfig;
+#endif
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
+#if LSM6DSV16BX_TDM_ENABLED
+    strcpy(p_new_obj->tdm_acc_sensor_status.p_name, sTheClass.tdm_acc_class_descriptor.p_name);
+#endif
     strcpy(p_new_obj->gyro_sensor_status.p_name, sTheClass.gyro_class_descriptor.p_name);
     strcpy(p_new_obj->mlc_sensor_status.p_name, sTheClass.mlc_class_descriptor.p_name);
   }
@@ -461,12 +551,22 @@ AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCCon
 }
 
 AManagedTaskEx *LSM6DSV16BXTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                            const char *p_name)
+#if LSM6DSV16BX_TDM_ENABLED
+                                            const void *pSAIConfig,
+#endif
+                                            boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV16BXTask *p_new_obj = (LSM6DSV16BXTask *) LSM6DSV16BXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV16BXTask *p_new_obj = (LSM6DSV16BXTask *)LSM6DSV16BXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                                                       pSAIConfig,
+#endif
+                                                                       i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
+#if LSM6DSV16BX_TDM_ENABLED
+  strcpy(p_new_obj->tdm_acc_sensor_status.p_name, p_name);
+#endif
   strcpy(p_new_obj->gyro_sensor_status.p_name, p_name);
   strcpy(p_new_obj->mlc_sensor_status.p_name, p_name);
 
@@ -474,7 +574,11 @@ AManagedTaskEx *LSM6DSV16BXTaskAllocSetName(const void *pIRQConfig, const void *
 }
 
 AManagedTaskEx *LSM6DSV16BXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                           const void *pCSConfig)
+                                           const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                           const void *pSAIConfig,
+#endif
+                                           boolean_t i3c_flag)
 {
   LSM6DSV16BXTask *p_obj = (LSM6DSV16BXTask *) p_mem_block;
 
@@ -485,28 +589,49 @@ AManagedTaskEx *LSM6DSV16BXTaskStaticAlloc(void *p_mem_block, const void *pIRQCo
 
     p_obj->super.vptr = &sTheClass.vtbl;
     p_obj->acc_sensor_if.vptr = &sTheClass.acc_sensor_if_vtbl;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_obj->tdm_acc_sensor_if.vptr = &sTheClass.tdm_acc_sensor_if_vtbl;
+#endif
     p_obj->gyro_sensor_if.vptr = &sTheClass.gyro_sensor_if_vtbl;
     p_obj->mlc_sensor_if.vptr = &sTheClass.mlc_sensor_if_vtbl;
     p_obj->sensor_ll_if.vptr = &sTheClass.sensor_ll_if_vtbl;
     p_obj->acc_sensor_descriptor = &sTheClass.acc_class_descriptor;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_obj->tdm_acc_sensor_descriptor = &sTheClass.tdm_acc_class_descriptor;
+#endif
     p_obj->gyro_sensor_descriptor = &sTheClass.gyro_class_descriptor;
     p_obj->mlc_sensor_descriptor = &sTheClass.mlc_class_descriptor;
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+#if LSM6DSV16BX_TDM_ENABLED
+    p_obj->pSAIConfig = (MX_SAIParams_t *) pSAIConfig;
+#endif
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *LSM6DSV16BXTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                  const void *pCSConfig, const char *p_name)
+                                                  const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                                  const void *pSAIConfig,
+#endif
+                                                  boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV16BXTask *p_obj = (LSM6DSV16BXTask *) LSM6DSV16BXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV16BXTask *p_obj = (LSM6DSV16BXTask *) LSM6DSV16BXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                                                          pSAIConfig,
+#endif
+                                                                          i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
+#if LSM6DSV16BX_TDM_ENABLED
+  strcpy(p_obj->tdm_acc_sensor_status.p_name, p_name);
+#endif
   strcpy(p_obj->gyro_sensor_status.p_name, p_name);
   strcpy(p_obj->mlc_sensor_status.p_name, p_name);
 
@@ -526,6 +651,15 @@ IEventSrc *LSM6DSV16BXTaskGetAccEventSrcIF(LSM6DSV16BXTask *_this)
 
   return (IEventSrc *) _this->p_acc_event_src;
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+IEventSrc *LSM6DSV16BXTaskGetTdmAccEventSrcIF(LSM6DSV16BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  return (IEventSrc *) _this->p_tdm_acc_event_src;
+}
+#endif
 
 IEventSrc *LSM6DSV16BXTaskGetGyroEventSrcIF(LSM6DSV16BXTask *_this)
 {
@@ -555,6 +689,21 @@ sys_error_code_t LSM6DSV16BXTask_vtblHardwareInit(AManagedTask *_this, void *pPa
   {
     p_obj->pCSConfig->p_mx_init_f();
   }
+
+#if LSM6DSV16BX_TDM_ENABLED
+  if (p_obj->pSAIConfig != NULL)
+  {
+    if (p_obj->pSAIConfig->p_mx_dma_init_f != NULL)
+    {
+      p_obj->pSAIConfig->p_mx_dma_init_f();
+    }
+    if (p_obj->pSAIConfig->p_mx_init_f != NULL)
+    {
+      p_obj->pSAIConfig->p_mx_init_f();
+    }
+    LSM6DSV16BXTaskConfigureSAIIrq(p_obj, TRUE);
+  }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
 
   return res;
 }
@@ -614,6 +763,15 @@ sys_error_code_t LSM6DSV16BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
   }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LSM6DSV16BX_ID, (uint8_t)(LSM6DSV16BX_TASK_CFG_I2C_ADDRESS >> 1), LSM6DSV16BX_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
   else
   {
     p_obj->p_sensor_bus_if = I2CBusIFAlloc(LSM6DSV16BX_ID, LSM6DSV16BX_TASK_CFG_I2C_ADDRESS, 0);
@@ -637,6 +795,17 @@ sys_error_code_t LSM6DSV16BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
     return res;
   }
   IEventSrcInit(p_obj->p_acc_event_src);
+
+#if LSM6DSV16BX_TDM_ENABLED
+  p_obj->p_tdm_acc_event_src = DataEventSrcAlloc();
+  if (p_obj->p_tdm_acc_event_src == NULL)
+  {
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_OUT_OF_MEMORY_ERROR_CODE);
+    res = SYS_OUT_OF_MEMORY_ERROR_CODE;
+    return res;
+  }
+  IEventSrcInit(p_obj->p_tdm_acc_event_src);
+#endif
 
   p_obj->p_gyro_event_src = DataEventSrcAlloc();
   if (p_obj->p_gyro_event_src == NULL)
@@ -702,7 +871,12 @@ sys_error_code_t LSM6DSV16BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
 #endif
   memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
   p_obj->acc_id = 0;
+#if LSM6DSV16BX_TDM_ENABLED
+  p_obj->tdm_acc_id = 1;
+  p_obj->gyro_id = 2;
+#else
   p_obj->gyro_id = 1;
+#endif
   p_obj->mlc_enable = FALSE;
   p_obj->prev_timestamp = 0.0f;
   p_obj->acc_samples_count = 0;
@@ -710,6 +884,15 @@ sys_error_code_t LSM6DSV16BXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
   p_obj->fifo_level = 0;
   p_obj->samples_per_it = 0;
   p_obj->first_data_ready = 0;
+#if LSM6DSV16BX_TDM_ENABLED
+  memset(p_obj->p_tdm_dma_buff, 0, sizeof(p_obj->p_tdm_dma_buff));
+  p_obj->p_tdm_data_ptr = NULL;
+  p_obj->tdm_samples_count = 0u;
+  p_obj->tdm_prev_timestamp = 0.0f;
+  p_obj->tdm_half = 0u;
+  p_obj->tdm_running = FALSE;
+  s_tdm_task_obj = p_obj;
+#endif /* LSM6DSV16BX_TDM_ENABLED */
   _this->m_pfPMState2FuncMap = sTheClass.p_pm_state2func_map;
 
   *pTaskCode = AMTExRun;
@@ -750,6 +933,13 @@ sys_error_code_t LSM6DSV16BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const
 
   if (NewPowerMode == E_POWER_MODE_SENSORS_ACTIVE)
   {
+#if LSM6DSV16BX_TDM_ENABLED
+    if (p_obj->pSAIConfig != NULL)
+    {
+      LSM6DSV16BXTaskConfigureSAIIrq(p_obj, FALSE);
+    }
+    p_obj->tdm_prev_timestamp = 0.0f;
+#endif /* LSM6DSV16BX_TDM_ENABLED */
     if (LSM6DSV16BXTaskSensorIsActive(p_obj))
     {
       SMMessage report =
@@ -774,6 +964,13 @@ sys_error_code_t LSM6DSV16BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const
   {
     if (ActivePowerMode == E_POWER_MODE_SENSORS_ACTIVE)
     {
+#if LSM6DSV16BX_TDM_ENABLED
+      LSM6DSV16BXTaskStopTDM(p_obj);
+      if (p_obj->pSAIConfig != NULL)
+      {
+        LSM6DSV16BXTaskConfigureSAIIrq(p_obj, TRUE);
+      }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
       if (LSM6DSV16BXTaskSensorIsActive(p_obj))
       {
         /* Deactivate the sensor */
@@ -786,8 +983,7 @@ sys_error_code_t LSM6DSV16BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -804,12 +1000,21 @@ sys_error_code_t LSM6DSV16BXTask_vtblDoEnterPowerMode(AManagedTask *_this, const
       {
         LSM6DSV16BXTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LSM6DSV16BX: -> STATE1\r\n"));
   }
   else if (NewPowerMode == E_POWER_MODE_SLEEP_1)
   {
+#if LSM6DSV16BX_TDM_ENABLED
+    LSM6DSV16BXTaskStopTDM(p_obj);
+    if (p_obj->pSAIConfig != NULL)
+    {
+      LSM6DSV16BXTaskConfigureSAIIrq(p_obj, TRUE);
+    }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
     /* the MCU is going in stop so I put the sensor in low power
      from the INIT task */
     res = LSM6DSV16BXTaskEnterLowPowerMode(p_obj);
@@ -935,6 +1140,17 @@ uint8_t LSM6DSV16BXTask_vtblAccGetId(ISourceObservable *_this)
   return res;
 }
 
+#if LSM6DSV16BX_TDM_ENABLED
+uint8_t LSM6DSV16BXTask_vtblTdmAccGetId(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  uint8_t res = p_if_owner->tdm_acc_id;
+
+  return res;
+}
+#endif
+
 uint8_t LSM6DSV16BXTask_vtblGyroGetId(ISourceObservable *_this)
 {
   assert_param(_this != NULL);
@@ -960,6 +1176,16 @@ IEventSrc *LSM6DSV16BXTask_vtblAccGetEventSourceIF(ISourceObservable *_this)
 
   return p_if_owner->p_acc_event_src;
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+IEventSrc *LSM6DSV16BXTask_vtblTdmAccGetEventSourceIF(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+
+  return p_if_owner->p_tdm_acc_event_src;
+}
+#endif
 
 IEventSrc *LSM6DSV16BXTask_vtblGyroGetEventSourceIF(ISourceObservable *_this)
 {
@@ -1023,6 +1249,55 @@ EMData_t LSM6DSV16BXTask_vtblAccGetDataInfo(ISourceObservable *_this)
 
   return res;
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+sys_error_code_t LSM6DSV16BXTask_vtblTdmAccGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  sys_error_code_t res = SYS_NO_ERROR_CODE;
+
+  if ((p_measured == NULL) || (p_nominal == NULL))
+  {
+    res = SYS_INVALID_PARAMETER_ERROR_CODE;
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_INVALID_PARAMETER_ERROR_CODE);
+  }
+  else
+  {
+    *p_measured = p_if_owner->tdm_acc_sensor_status.type.mems.measured_odr;
+    *p_nominal = p_if_owner->tdm_acc_sensor_status.type.mems.odr;
+  }
+
+  return res;
+}
+
+float_t LSM6DSV16BXTask_vtblTdmAccGetFS(ISensorMems_t *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  float_t res = p_if_owner->tdm_acc_sensor_status.type.mems.fs;
+
+  return res;
+}
+
+float_t LSM6DSV16BXTask_vtblTdmAccGetSensitivity(ISensorMems_t *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  float_t res = p_if_owner->tdm_acc_sensor_status.type.mems.sensitivity;
+
+  return res;
+}
+
+EMData_t LSM6DSV16BXTask_vtblTdmAccGetDataInfo(ISourceObservable *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = (LSM6DSV16BXTask *)((uint32_t) _this - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  EMData_t res = p_if_owner->data_tdm_acc;
+
+  return res;
+}
+#endif
 
 sys_error_code_t LSM6DSV16BXTask_vtblGyroGetODR(ISensorMems_t *_this, float_t *p_measured, float_t *p_nominal)
 {
@@ -1153,6 +1428,13 @@ sys_error_code_t LSM6DSV16BXTask_vtblSensorSetODR(ISensorMems_t *_this, float_t 
         p_if_owner->acc_sensor_status.type.mems.odr = odr;
         p_if_owner->acc_sensor_status.type.mems.measured_odr = 0.0f;
       }
+#if LSM6DSV16BX_TDM_ENABLED
+      else if (sensor_id == p_if_owner->tdm_acc_id)
+      {
+        p_if_owner->tdm_acc_sensor_status.type.mems.odr = odr;
+        p_if_owner->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+      }
+#endif
       else if (sensor_id == p_if_owner->gyro_id)
       {
         p_if_owner->gyro_sensor_status.type.mems.odr = odr;
@@ -1202,6 +1484,13 @@ sys_error_code_t LSM6DSV16BXTask_vtblSensorSetFS(ISensorMems_t *_this, float_t f
       p_if_owner->acc_sensor_status.type.mems.fs = fs;
       p_if_owner->acc_sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->acc_sensor_status.type.mems.fs;
     }
+#if LSM6DSV16BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.type.mems.fs = fs;
+      p_if_owner->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->tdm_acc_sensor_status.type.mems.fs;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.type.mems.fs = fs;
@@ -1278,6 +1567,12 @@ sys_error_code_t LSM6DSV16BXTask_vtblSensorEnable(ISensor_t *_this)
     {
       p_if_owner->acc_sensor_status.is_active = TRUE;
     }
+#if LSM6DSV16BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.is_active = TRUE;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.is_active = TRUE;
@@ -1322,6 +1617,12 @@ sys_error_code_t LSM6DSV16BXTask_vtblSensorDisable(ISensor_t *_this)
     {
       p_if_owner->acc_sensor_status.is_active = FALSE;
     }
+#if LSM6DSV16BX_TDM_ENABLED
+    else if (sensor_id == p_if_owner->tdm_acc_id)
+    {
+      p_if_owner->tdm_acc_sensor_status.is_active = FALSE;
+    }
+#endif
     else if (sensor_id == p_if_owner->gyro_id)
     {
       p_if_owner->gyro_sensor_status.is_active = FALSE;
@@ -1357,6 +1658,12 @@ boolean_t LSM6DSV16BXTask_vtblSensorIsEnabled(ISensor_t *_this)
   {
     res = p_if_owner->acc_sensor_status.is_active;
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  else if (ISourceGetId((ISourceObservable *) _this) == p_if_owner->tdm_acc_id)
+  {
+    res = p_if_owner->tdm_acc_sensor_status.is_active;
+  }
+#endif
   else if (ISourceGetId((ISourceObservable *) _this) == p_if_owner->gyro_id)
   {
     res = p_if_owner->gyro_sensor_status.is_active;
@@ -1375,6 +1682,15 @@ SensorDescriptor_t LSM6DSV16BXTask_vtblAccGetDescription(ISensor_t *_this)
   LSM6DSV16BXTask *p_if_owner = LSM6DSV16BXTaskGetOwnerFromISensorIF(_this);
   return *p_if_owner->acc_sensor_descriptor;
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+SensorDescriptor_t LSM6DSV16BXTask_vtblTdmAccGetDescription(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = LSM6DSV16BXTaskGetOwnerFromISensorIF(_this);
+  return *p_if_owner->tdm_acc_sensor_descriptor;
+}
+#endif
 
 SensorDescriptor_t LSM6DSV16BXTask_vtblGyroGetDescription(ISensor_t *_this)
 {
@@ -1397,6 +1713,15 @@ SensorStatus_t LSM6DSV16BXTask_vtblAccGetStatus(ISensor_t *_this)
   return p_if_owner->acc_sensor_status;
 }
 
+#if LSM6DSV16BX_TDM_ENABLED
+SensorStatus_t LSM6DSV16BXTask_vtblTdmAccGetStatus(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = LSM6DSV16BXTaskGetOwnerFromISensorIF(_this);
+  return p_if_owner->tdm_acc_sensor_status;
+}
+#endif
+
 SensorStatus_t LSM6DSV16BXTask_vtblGyroGetStatus(ISensor_t *_this)
 {
   assert_param(_this != NULL);
@@ -1417,6 +1742,15 @@ SensorStatus_t *LSM6DSV16BXTask_vtblAccGetStatusPointer(ISensor_t *_this)
   LSM6DSV16BXTask *p_if_owner = LSM6DSV16BXTaskGetOwnerFromISensorIF(_this);
   return &p_if_owner->acc_sensor_status;
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+SensorStatus_t *LSM6DSV16BXTask_vtblTdmAccGetStatusPointer(ISensor_t *_this)
+{
+  assert_param(_this != NULL);
+  LSM6DSV16BXTask *p_if_owner = LSM6DSV16BXTaskGetOwnerFromISensorIF(_this);
+  return &p_if_owner->tdm_acc_sensor_status;
+}
+#endif
 
 SensorStatus_t *LSM6DSV16BXTask_vtblGyroGetStatusPointer(ISensor_t *_this)
 {
@@ -1772,6 +2106,36 @@ static sys_error_code_t LSM6DSV16BXTaskExecuteStepDatalog(AManagedTask *_this)
         break;
       }
 
+#if LSM6DSV16BX_TDM_ENABLED
+      case SM_MESSAGE_ID_DATA_READY_TDM:
+      {
+        if (p_obj->tdm_running && (report.sensorDataReadyMessage.half != 0u))
+        {
+          p_obj->tdm_half = report.sensorDataReadyMessage.half;
+          res = LSM6DSV16BXTaskSensorReadDataTDM(p_obj);
+
+          if (!SYS_IS_ERROR_CODE(res) && p_obj->tdm_acc_sensor_status.is_active && (p_obj->tdm_samples_count > 0u))
+          {
+            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
+            double_t delta_timestamp = timestamp - p_obj->tdm_prev_timestamp;
+            p_obj->tdm_prev_timestamp = timestamp;
+
+            if (delta_timestamp > 0.0)
+            {
+              p_obj->tdm_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->tdm_samples_count / (float_t)delta_timestamp;
+            }
+
+            DataEvent_t evt_acc;
+            EMD_Init(&p_obj->data_tdm_acc, (uint8_t *)p_obj->p_tdm_data_ptr, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                     p_obj->tdm_samples_count, 3);
+            DataEventInit((IEvent *) &evt_acc, p_obj->p_tdm_acc_event_src, &p_obj->data_tdm_acc, timestamp, p_obj->tdm_acc_id);
+            IEventSrcSendEvent(p_obj->p_tdm_acc_event_src, (IEvent *) &evt_acc, NULL);
+          }
+        }
+        break;
+      }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
+
       case SM_MESSAGE_ID_SENSOR_CMD:
       {
         switch (report.sensorMessage.nCmdID)
@@ -1800,6 +2164,17 @@ static sys_error_code_t LSM6DSV16BXTaskExecuteStepDatalog(AManagedTask *_this)
                   LSM6DSV16BXTaskConfigureIrqPin(p_obj, FALSE);
                 }
               }
+
+#if LSM6DSV16BX_TDM_ENABLED
+              if (p_obj->tdm_acc_sensor_status.is_active)
+              {
+                sys_error_code_t tdm_res = LSM6DSV16BXTaskStartTDM(p_obj);
+                if (SYS_IS_ERROR_CODE(tdm_res))
+                {
+                  res = tdm_res;
+                }
+              }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
             }
             if (!SYS_IS_ERROR_CODE(res))
             {
@@ -2254,11 +2629,11 @@ static sys_error_code_t LSM6DSV16BXTaskSensorInit(LSM6DSV16BXTask *_this)
   }
   else
   {
+    lsm6dsv16bx_mlc_set(p_sensor_drv, LSM6DSV16BX_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -2293,7 +2668,7 @@ static sys_error_code_t LSM6DSV16BXTaskSensorInit(LSM6DSV16BXTask *_this)
   }
   else if (_this->gyro_sensor_status.is_active)
   {
-    _this->lsm6dsv16bx_task_cfg_timer_period_ms = (uint16_t)(_this->acc_sensor_status.type.mems.odr);
+    _this->lsm6dsv16bx_task_cfg_timer_period_ms = (uint16_t)(_this->gyro_sensor_status.type.mems.odr);
   }
   else
   {
@@ -2412,6 +2787,9 @@ static sys_error_code_t LSM6DSV16BXTaskSensorReadData(LSM6DSV16BXTask *_this)
         int16_t *p16_src = (int16_t *) _this->p_fast_sensor_data_buff;
         int16_t *p16_dest = (int16_t *) _this->p_fast_sensor_data_buff;
         int16_t p_acc[3];
+
+        _this->acc_samples_count = 0;
+        _this->gyro_samples_count = 0;
 
         uint8_t *p_tag = (uint8_t *) p16_src;
 
@@ -2548,13 +2926,34 @@ static sys_error_code_t LSM6DSV16BXTaskSensorReadData(LSM6DSV16BXTask *_this)
   return res;
 }
 
-uint8_t lsm6dsv16bx_mlc_output[4];
+#if LSM6DSV16BX_TDM_ENABLED
+static sys_error_code_t LSM6DSV16BXTaskSensorReadDataTDM(LSM6DSV16BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->tdm_running && ((_this->tdm_half == 1u) || (_this->tdm_half == 2u)))
+  {
+    uint16_t half_words = (uint16_t)(LSM6DSV16BX_TDM_DMA_SAMPLES / 2u);
+    uint16_t offset = (_this->tdm_half == 1u) ? 0u : half_words;
+
+    _this->p_tdm_data_ptr = &_this->p_tdm_dma_buff[offset];
+    _this->tdm_samples_count = (uint16_t)(half_words / 3u);
+
+    return SYS_NO_ERROR_CODE;
+  }
+
+  _this->tdm_samples_count = 0u;
+  return SYS_BASE_ERROR_CODE;
+}
+#endif /* LSM6DSV16BX_TDM_ENABLED */
+
 static sys_error_code_t LSM6DSV16BXTaskSensorReadMLC(LSM6DSV16BXTask *_this)
 {
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_BASE_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
   lsm6dsv16bx_mlc_status_t mlc_status;
+  uint8_t lsm6dsv16bx_mlc_output[4];
 
   if (_this->mlc_enable)
   {
@@ -2587,11 +2986,15 @@ static sys_error_code_t LSM6DSV16BXTaskSensorRegister(LSM6DSV16BXTask *_this)
   ISensor_t *acc_if = (ISensor_t *) LSM6DSV16BXTaskGetAccSensorIF(_this);
   _this->acc_id = SMAddSensor(acc_if);
 #endif
+#if LSM6DSV16BX_TDM_ENABLED
+  ISensor_t *tdm_acc_if = (ISensor_t *) LSM6DSV16BXTaskGetTdmAccSensorIF(_this);
+  _this->tdm_acc_id = SMAddSensor(tdm_acc_if);
+#endif
 #if !LSM6DSV16BX_GYRO_DISABLED
   ISensor_t *gyro_if = (ISensor_t *) LSM6DSV16BXTaskGetGyroSensorIF(_this);
   _this->gyro_id = SMAddSensor(gyro_if);
 #endif
-#if !LSM5DSV16BX_MLC_DISABLED
+#if !LSM6DSV16BX_MLC_DISABLED
   ISensor_t *mlc_if = (ISensor_t *) LSM6DSV16BXTaskGetMlcSensorIF(_this);
   _this->mlc_id = SMAddSensor(mlc_if);
 #endif
@@ -2615,6 +3018,17 @@ static sys_error_code_t LSM6DSV16BXTaskSensorInitTaskParams(LSM6DSV16BXTask *_th
   EMD_Init(&_this->data_acc, _this->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
 #else
   EMD_Init(&_this->data_acc, _this->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
+#endif
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /* TDM ACCELEROMETER STATUS */
+  _this->tdm_acc_sensor_status.isensor_class = ISENSOR_CLASS_MEMS;
+  _this->tdm_acc_sensor_status.is_active = FALSE;
+  _this->tdm_acc_sensor_status.type.mems.fs = 8.0f;
+  _this->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->tdm_acc_sensor_status.type.mems.fs;
+  _this->tdm_acc_sensor_status.type.mems.odr = 8000.0f;
+  _this->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+  EMD_Init(&_this->data_tdm_acc, (uint8_t *)_this->p_tdm_dma_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, 1, 3);
 #endif
 
   /* GYROSCOPE STATUS */
@@ -2717,6 +3131,21 @@ static sys_error_code_t LSM6DSV16BXTaskSensorSetODR(LSM6DSV16BXTask *_this, SMMe
       _this->acc_sensor_status.type.mems.measured_odr = 0.0f;
     }
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    if (odr != 8000.0f)
+    {
+      res = SYS_TASK_INVALID_CALL_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_TASK_INVALID_CALL_ERROR_CODE);
+    }
+    else
+    {
+      _this->tdm_acc_sensor_status.type.mems.odr = odr;
+      _this->tdm_acc_sensor_status.type.mems.measured_odr = 0.0f;
+    }
+  }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
   else if (id == _this->gyro_id)
   {
     if (odr < 1.0f)
@@ -2831,10 +3260,28 @@ static sys_error_code_t LSM6DSV16BXTaskSensorSetFS(LSM6DSV16BXTask *_this, SMMes
     {
       fs = 16.0f;
     }
-
     _this->acc_sensor_status.type.mems.fs = fs;
     _this->acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->acc_sensor_status.type.mems.fs;
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    if (fs < 3.0f)
+    {
+      fs = 2.0f;
+    }
+    else if (fs < 5.0f)
+    {
+      fs = 4.0f;
+    }
+    else
+    {
+      fs = 8.0f;
+    }
+    _this->tdm_acc_sensor_status.type.mems.fs = fs;
+    _this->tdm_acc_sensor_status.type.mems.sensitivity = 0.0000305f * _this->tdm_acc_sensor_status.type.mems.fs;
+  }
+#endif /* LSM6DSV16BX_TDM_ENABLED */
   else if (id == _this->gyro_id)
   {
     if (fs < 126.0f)
@@ -2939,6 +3386,12 @@ static sys_error_code_t LSM6DSV16BXTaskSensorEnable(LSM6DSV16BXTask *_this, SMMe
     _this->mlc_enable = FALSE;
     _this->mlc_sensor_status.is_active = FALSE;
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    _this->tdm_acc_sensor_status.is_active = TRUE;
+  }
+#endif
   else if (id == _this->gyro_id)
   {
     _this->gyro_sensor_status.is_active = TRUE;
@@ -2977,6 +3430,13 @@ static sys_error_code_t LSM6DSV16BXTaskSensorDisable(LSM6DSV16BXTask *_this, SMM
     _this->mlc_enable = FALSE;
     _this->mlc_sensor_status.is_active = FALSE;
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  else if (id == _this->tdm_acc_id)
+  {
+    _this->tdm_acc_sensor_status.is_active = FALSE;
+    LSM6DSV16BXTaskStopTDM(_this);
+  }
+#endif
   else if (id == _this->gyro_id)
   {
     _this->gyro_sensor_status.is_active = FALSE;
@@ -3002,7 +3462,13 @@ static sys_error_code_t LSM6DSV16BXTaskSensorDisable(LSM6DSV16BXTask *_this, SMM
 static boolean_t LSM6DSV16BXTaskSensorIsActive(const LSM6DSV16BXTask *_this)
 {
   assert_param(_this != NULL);
-  return (_this->acc_sensor_status.is_active || _this->gyro_sensor_status.is_active);
+  return (
+           _this->acc_sensor_status.is_active
+#if LSM6DSV16BX_TDM_ENABLED
+           || _this->tdm_acc_sensor_status.is_active
+#endif
+           || _this->gyro_sensor_status.is_active
+         );
 }
 
 static sys_error_code_t LSM6DSV16BXTaskEnterLowPowerMode(const LSM6DSV16BXTask *_this)
@@ -3010,6 +3476,10 @@ static sys_error_code_t LSM6DSV16BXTaskEnterLowPowerMode(const LSM6DSV16BXTask *
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  LSM6DSV16BXTaskStopTDM((LSM6DSV16BXTask *)_this);
+#endif /* LSM6DSV16BX_TDM_ENABLED */
 
   lsm6dsv16bx_xl_data_rate_t lsm6dsv16bx_xl_data_rate = LSM6DSV16BX_XL_ODR_OFF;
   lsm6dsv16bx_fifo_xl_batch_t lsm6dsv16bx_fifo_xl_batch = LSM6DSV16BX_XL_NOT_BATCHED;
@@ -3084,6 +3554,34 @@ static sys_error_code_t LSM6DSV16BXTaskConfigureMLCPin(const LSM6DSV16BXTask *_t
   return res;
 }
 
+#if LSM6DSV16BX_TDM_ENABLED
+static sys_error_code_t LSM6DSV16BXTaskConfigureSAIIrq(const LSM6DSV16BXTask *_this, boolean_t LowPower)
+{
+  assert_param(_this != NULL);
+  sys_error_code_t res = SYS_NO_ERROR_CODE;
+
+  if (_this->pSAIConfig == NULL)
+  {
+    return res;
+  }
+
+  if (!LowPower)
+  {
+    HAL_NVIC_EnableIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_EnableIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+  }
+  else
+  {
+    HAL_NVIC_DisableIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_ClearPendingIRQ(_this->pSAIConfig->sai_irq_n);
+    HAL_NVIC_DisableIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+    HAL_NVIC_ClearPendingIRQ(_this->pSAIConfig->sai_dma_rx_irq_n);
+  }
+
+  return res;
+}
+#endif /* LSM6DSV16BX_TDM_ENABLED */
+
 static inline LSM6DSV16BXTask *LSM6DSV16BXTaskGetOwnerFromISensorIF(ISensor_t *p_if)
 {
   assert_param(p_if != NULL);
@@ -3102,6 +3600,14 @@ static inline LSM6DSV16BXTask *LSM6DSV16BXTaskGetOwnerFromISensorIF(ISensor_t *p
     /* then the virtual function has been called from the acc IF  */
     p_if_owner = (LSM6DSV16BXTask *)((uint32_t) p_if - offsetof(LSM6DSV16BXTask, acc_sensor_if));
   }
+#if LSM6DSV16BX_TDM_ENABLED
+  if (!(p_if_owner->tdm_acc_sensor_if.vptr == &sTheClass.tdm_acc_sensor_if_vtbl)
+      || !(p_if_owner->super.vptr == &sTheClass.vtbl))
+  {
+    /* then the virtual function has been called from the TDM acc IF  */
+    p_if_owner = (LSM6DSV16BXTask *)((uint32_t) p_if - offsetof(LSM6DSV16BXTask, tdm_acc_sensor_if));
+  }
+#endif
 
   return p_if_owner;
 }
@@ -3120,15 +3626,14 @@ static void LSM6DSV16BXTaskTimerCallbackFunction(ULONG param)
   LSM6DSV16BXTask *p_obj = (LSM6DSV16BXTask *) param;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void LSM6DSV16BXTaskMLCTimerCallbackFunction(ULONG param)
@@ -3136,15 +3641,14 @@ static void LSM6DSV16BXTaskMLCTimerCallbackFunction(ULONG param)
   LSM6DSV16BXTask *p_obj = (LSM6DSV16BXTask *) param;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -3155,6 +3659,7 @@ void LSM6DSV16BXTask_EXTI_Callback(uint16_t nPin)
   TX_QUEUE *p_queue;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
   p_val = MTMap_FindByKey(&sTheClass.task_map, (uint32_t) nPin);
@@ -3175,6 +3680,7 @@ void INT2_DSV16BX_EXTI_Callback(uint16_t nPin)
   TX_QUEUE *p_queue;
   SMMessage report;
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
+  report.sensorDataReadyMessage.half = 0u;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
   p_val = MTMap_FindByKey(&sTheClass.task_map, (uint32_t) nPin);
@@ -3188,6 +3694,154 @@ void INT2_DSV16BX_EXTI_Callback(uint16_t nPin)
     }
   }
 }
+
+#if LSM6DSV16BX_TDM_ENABLED
+static sys_error_code_t LSM6DSV16BXTaskConfigureTDM(LSM6DSV16BXTask *_this)
+{
+  assert_param(_this != NULL);
+  stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
+
+  lsm6dsv16bx_tdm_xl_axis_t tdm_axes =
+  {
+    .x = 1u,
+    .y = 1u,
+    .z = 1u
+  };
+
+  lsm6dsv16bx_tdm_xl_full_scale_t tdm_fs = LSM6DSV16BX_TDM_2g;
+
+  if (_this->acc_sensor_status.type.mems.fs < 3.0f)
+  {
+    tdm_fs = LSM6DSV16BX_TDM_2g;
+  }
+  else if (_this->acc_sensor_status.type.mems.fs < 5.0f)
+  {
+    tdm_fs = LSM6DSV16BX_TDM_4g;
+  }
+  else
+  {
+    tdm_fs = LSM6DSV16BX_TDM_8g;
+    _this->acc_sensor_status.type.mems.fs = 8.0f;
+  }
+
+  if (lsm6dsv16bx_xl_mode_set(p_sensor_drv, LSM6DSV16BX_XL_HIGH_PERFORMANCE_TDM_MD) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (lsm6dsv16bx_tdm_wclk_bclk_set(p_sensor_drv, LSM6DSV16BX_WCLK_8kHZ_BCLK_2048kHz) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (lsm6dsv16bx_tdm_axis_order_set(p_sensor_drv, LSM6DSV16BX_TDM_ORDER_XYZ) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (lsm6dsv16bx_tdm_xl_axis_set(p_sensor_drv, tdm_axes) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+  if (lsm6dsv16bx_tdm_xl_full_scale_set(p_sensor_drv, tdm_fs) != 0)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  return SYS_NO_ERROR_CODE;
+}
+
+static sys_error_code_t LSM6DSV16BXTaskStartTDM(LSM6DSV16BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->pCSConfig == NULL)
+  {
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (_this->pSAIConfig == NULL)
+  {
+    return SYS_INVALID_PARAMETER_ERROR_CODE;
+  }
+
+  if (!_this->tdm_acc_sensor_status.is_active)
+  {
+    LSM6DSV16BXTaskStopTDM(_this);
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (_this->tdm_running)
+  {
+    return SYS_NO_ERROR_CODE;
+  }
+
+  if (LSM6DSV16BXTaskConfigureTDM(_this) != SYS_NO_ERROR_CODE)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  if (HAL_SAI_Receive_DMA(_this->pSAIConfig->p_sai_handle, (uint8_t *)_this->p_tdm_dma_buff,
+                          LSM6DSV16BX_TDM_DMA_SAMPLES) != HAL_OK)
+  {
+    return SYS_BASE_ERROR_CODE;
+  }
+
+  _this->tdm_half = 0u;
+  _this->tdm_samples_count = 0u;
+  _this->tdm_running = TRUE;
+
+  return SYS_NO_ERROR_CODE;
+}
+
+static void LSM6DSV16BXTaskStopTDM(LSM6DSV16BXTask *_this)
+{
+  assert_param(_this != NULL);
+
+  if (_this->tdm_running)
+  {
+    if (_this->pSAIConfig != NULL)
+    {
+      (void) HAL_SAI_DMAStop(_this->pSAIConfig->p_sai_handle);
+    }
+    _this->tdm_running = FALSE;
+    _this->tdm_half = 0u;
+    _this->tdm_samples_count = 0u;
+    _this->p_tdm_data_ptr = NULL;
+  }
+}
+
+void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
+{
+  if ((s_tdm_task_obj != NULL) && s_tdm_task_obj->tdm_running && (s_tdm_task_obj->pSAIConfig != NULL)
+      && (hsai == s_tdm_task_obj->pSAIConfig->p_sai_handle))
+  {
+    SMMessage report;
+    report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_TDM;
+    report.sensorDataReadyMessage.half = 1u;
+    report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
+
+    if (TX_SUCCESS != tx_queue_send(&s_tdm_task_obj->in_queue, &report, TX_NO_WAIT))
+    {
+      sys_error_handler();
+    }
+  }
+}
+
+void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
+{
+  if ((s_tdm_task_obj != NULL) && s_tdm_task_obj->tdm_running && (s_tdm_task_obj->pSAIConfig != NULL)
+      && (hsai == s_tdm_task_obj->pSAIConfig->p_sai_handle))
+  {
+    SMMessage report;
+    report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_TDM;
+    report.sensorDataReadyMessage.half = 2u;
+    report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
+
+    if (TX_SUCCESS != tx_queue_send(&s_tdm_task_obj->in_queue, &report, TX_NO_WAIT))
+    {
+      sys_error_handler();
+    }
+  }
+}
+#endif /* LSM6DSV16BX_TDM_ENABLED */
 
 static sys_error_code_t LSM6DSV16BX_ODR_Sync(LSM6DSV16BXTask *_this)
 {

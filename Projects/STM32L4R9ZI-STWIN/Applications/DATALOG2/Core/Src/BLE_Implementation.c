@@ -860,7 +860,6 @@ static void BLE_SendCommand(char *buf, uint32_t size)
     if (buffer_out == NULL)
     {
       BLE_MANAGER_PRINTF("Error: Mem calloc error [%ld]: %d@%s\r\n", length_wTP, __LINE__, __FILE__);
-      // TODO: manage error
       return;
     }
     else

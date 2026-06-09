@@ -53,7 +53,7 @@
 #define IIS3DWB10IS_TASK_CFG_TIMER_PERIOD_MS          1000
 #endif
 #ifndef IIS3DWB10IS_TASK_CFG_ISPU_TIMER_PERIOD_MS
-#define IIS3DWB10IS_TASK_CFG_ISPU_TIMER_PERIOD_MS     50
+#define IIS3DWB10IS_TASK_CFG_ISPU_TIMER_PERIOD_MS     5
 #endif
 
 #define IIS3DWB10IS_TAG_ACC                           (0x10)
@@ -69,8 +69,18 @@
 #endif
 
 #if (HSD_USE_DUMMY_DATA == 1)
-static int16_t dummyDataCounter_acc = 0;
+static int32_t dummyDataCounter_acc = 0;
+
+static void IIS3DWB10ISTaskEncodeDummyInt24(int32_t value, uint8_t *p_dummy_buffer)
+{
+  uint32_t encoded_value = ((uint32_t)value) & 0x00FFFFFFU;
+
+  p_dummy_buffer[0] = (uint8_t)(encoded_value & 0xFFU);
+  p_dummy_buffer[1] = (uint8_t)((encoded_value >> 8) & 0xFFU);
+  p_dummy_buffer[2] = (uint8_t)((encoded_value >> 16) & 0xFFU);
+}
 #endif
+
 
 /**
   * Class object declaration
@@ -241,7 +251,9 @@ static sys_error_code_t IIS3DWB10IS_ODR_Sync(IIS3DWB10ISTask *_this);
   */
 static sys_error_code_t IIS3DWB10IS_FS_Sync(IIS3DWB10ISTask *_this);
 
+#if IIS3DWB10IS_FIFO_ENABLED
 static int32_t save_20bit_to_24bit(int32_t x_raw);
+#endif /* IIS3DWB10IS_FIFO_ENABLED */
 
 /* Inline function forward declaration */
 /***************************************/
@@ -711,9 +723,11 @@ sys_error_code_t IIS3DWB10ISTask_vtblDoEnterPowerMode(AManagedTask *_this, const
         iis3dwb10is_fifo_mode_set(p_sensor_drv, IIS3DWB10IS_BYPASS_MODE);
       }
 
+      p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
       /* Empty the task queue and disable INT or timer */
       tx_queue_flush(&p_obj->in_queue);
+      memset(p_obj->p_ispu_output_buff, 0, sizeof(p_obj->p_ispu_output_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS3DWB10IS: -> STATE1\r\n"));
   }
@@ -1686,10 +1700,10 @@ static sys_error_code_t IIS3DWB10ISTaskSensorInit(IIS3DWB10ISTask *_this)
 
   int32_t ret_val = 0;
   uint8_t reg0 = 0;
-  iis3dwb10is_reset_t rst;
   iis3dwb10is_xl_data_cfg_t xl_cfg;
   iis3dwb10is_data_rate_t iis3dwb10is_xl_data_rate;
   iis3dwb10is_xl_data_rate.odr = IIS3DWB10IS_ODR_IDLE;
+  iis3dwb10is_pin_int_route_t int_route = {0};
 
   /* Check device ID */
   ret_val = iis3dwb10is_device_id_get(p_sensor_drv, (uint8_t *) &reg0);
@@ -1699,38 +1713,118 @@ static sys_error_code_t IIS3DWB10ISTaskSensorInit(IIS3DWB10ISTask *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS3DWB10IS: sensor - I am 0x%x.\r\n", reg0));
 
-  iis3dwb10is_mem_bank_set(p_sensor_drv, IIS3DWB10IS_MAIN_MEM_BANK);
+  uint8_t data = 0x00;
+  iis3dwb10is_write_reg(p_sensor_drv, IIS3DWB10IS_IF_CFG, &data, 1);
+  data = 0x0C;
+  iis3dwb10is_write_reg(p_sensor_drv, IIS3DWB10IS_PIN_CTRL, &data, 1);
 
-  if (_this->ispu_enable == false)
+#if IIS3DWB10IS_FIFO_ENABLED
+  uint32_t iis3dwb10is_wtm_level = 0;
+  iis3dwb10is_fifo_sensor_batch_t fifo_batch;
+
+  if (_this->samples_per_it == 0)
   {
-    /* Restore default configuration */
-    rst.boot = 1;
-    rst.sw_rst = 1;
-    ret_val = iis3dwb10is_reset_set(p_sensor_drv, rst);
-    do
+    /* Calculation of watermark and samples per int*/
+    iis3dwb10is_wtm_level = ((uint32_t) _this->acc_sensor_status.type.mems.odr * (uint32_t) IIS3DWB10IS_MAX_DRDY_PERIOD);
+    if (iis3dwb10is_wtm_level > IIS3DWB10IS_MAX_WTM_LEVEL)
     {
-      iis3dwb10is_reset_get(p_sensor_drv, &rst);
-    } while (rst.sw_rst);
-
-    /* Enable Block Data Update */
-    iis3dwb10is_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
-
-    iis3dwb10is_xl_data_config_get(p_sensor_drv, &xl_cfg);
-    xl_cfg.rounding = IIS3DWB10IS_WRAPAROUND_DISABLED;
-    iis3dwb10is_xl_data_config_set(p_sensor_drv, xl_cfg);
+      iis3dwb10is_wtm_level = IIS3DWB10IS_MAX_WTM_LEVEL;
+    }
+    _this->samples_per_it = (uint16_t)iis3dwb10is_wtm_level;
   }
-  /* Set full scale */
-  if (_this->acc_sensor_status.type.mems.fs < 51.0f)
+
+  /*
+   * Set FIFO watermark (number of unread sensor data TAG + 9 bytes
+   * stored in FIFO) to FIFO_WATERMARK samples
+   */
+  iis3dwb10is_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
+  iis3dwb10is_fifo_stop_on_wtm_set(p_sensor_drv, 0);
+  iis3dwb10is_fifo_batch_get(p_sensor_drv, &fifo_batch);
+  fifo_batch.batch_xl = 1;
+  fifo_batch.batch_temp = 0;
+  fifo_batch.batch_ts = IIS3DWB10IS_TMSTMP_NOT_BATCHED;
+  fifo_batch.batch_ispu = 0;
+  iis3dwb10is_fifo_batch_set(p_sensor_drv, fifo_batch);
+  /* Set FIFO mode to Stream mode (aka Continuous Mode) */
+  iis3dwb10is_fifo_mode_set(p_sensor_drv, IIS3DWB10IS_STREAM_MODE);
+  /* Enable Block Data Update */
+  iis3dwb10is_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
+  /* Enable FIFO threshold interrupt on INT1 */
+  iis3dwb10is_pin_int1_route_get(p_sensor_drv, &int_route);
+  if (_this->p_irq_config != NULL)
   {
-    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB_50g);
-  }
-  else if (_this->acc_sensor_status.type.mems.fs < 101.0f)
-  {
-    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB_100g);
+    int_route.fifo_th = PROPERTY_ENABLE;
   }
   else
   {
-    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB_200g);
+    int_route.fifo_th = PROPERTY_DISABLE;
+  }
+  iis3dwb10is_pin_int1_route_set(p_sensor_drv, int_route);
+
+#else
+
+  uint8_t buff[12];
+  iis3dwb10is_read_reg(p_sensor_drv, IIS3DWB10IS_OUTX_L_A, &buff[0], 12);
+
+  _this->samples_per_it = 1;
+  if (_this->p_irq_config != NULL)
+  {
+    if (_this->acc_sensor_status.is_active)
+    {
+      int_route.drdy_xl = PROPERTY_ENABLE;
+    }
+  }
+  else
+  {
+    int_route.drdy_xl = PROPERTY_DISABLE;
+  }
+  iis3dwb10is_pin_int1_route_set(p_sensor_drv, int_route);
+
+#endif /* IIS3DWB10IS_FIFO_ENABLED */
+
+  /* Setup ispu */
+  if (_this->ispu_enable)
+  {
+    iis3dwb10is_int_ctrl4_t ispu_int;
+    iis3dwb10is_read_reg(p_sensor_drv, IIS3DWB10IS_INT_CTRL4, (uint8_t *)&ispu_int, 1);
+
+    if (ispu_int.int1_ispu == 1)
+    {
+      ispu_int.int1_ispu = 0;
+    }
+    if (ispu_int.int2_ispu == 0)
+    {
+      ispu_int.int2_ispu = 1;
+    }
+    iis3dwb10is_write_reg(p_sensor_drv, IIS3DWB10IS_INT_CTRL4, (uint8_t *)&ispu_int, 1);
+
+    SMMessage report;
+    report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_ISPU;
+    report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
+    if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
+    {
+      /* unable to send the report. Signal the error */
+      sys_error_handler();
+    }
+  }
+
+  /* Configure xl axis */
+  iis3dwb10is_xl_data_config_get(p_sensor_drv, &xl_cfg);
+  xl_cfg.rounding = IIS3DWB10IS_WRAPAROUND_DISABLED;
+  iis3dwb10is_xl_data_config_set(p_sensor_drv, xl_cfg);
+
+  /* Set full scale */
+  if (_this->acc_sensor_status.type.mems.fs < 51.0f)
+  {
+    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB10IS_50g);
+  }
+  else if (_this->acc_sensor_status.type.mems.fs < 101.0f)
+  {
+    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB10IS_100g);
+  }
+  else
+  {
+    iis3dwb10is_xl_full_scale_set(p_sensor_drv, IIS3DWB10IS_200g);
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS3DWB10IS: sensor FS - %.1f \r\n", _this->acc_sensor_status.type.mems.fs));
 
@@ -1770,79 +1864,6 @@ static sys_error_code_t IIS3DWB10ISTaskSensorInit(IIS3DWB10ISTask *_this)
   }
   iis3dwb10is_xl_data_rate_set(p_sensor_drv, iis3dwb10is_xl_data_rate);
 
-  iis3dwb10is_pin_int_route_t int_route = {0};
-
-#if IIS3DWB10IS_FIFO_ENABLED
-  uint32_t iis3dwb10is_wtm_level = 0;
-  iis3dwb10is_fifo_sensor_batch_t fifo_batch;
-
-  if (_this->samples_per_it == 0)
-  {
-    /* Calculation of watermark and samples per int*/
-    iis3dwb10is_wtm_level = ((uint32_t) _this->acc_sensor_status.type.mems.odr * (uint32_t) IIS3DWB10IS_MAX_DRDY_PERIOD);
-    if (iis3dwb10is_wtm_level > IIS3DWB10IS_MAX_WTM_LEVEL)
-    {
-      iis3dwb10is_wtm_level = IIS3DWB10IS_MAX_WTM_LEVEL;
-    }
-    _this->samples_per_it = (uint16_t)iis3dwb10is_wtm_level;
-  }
-
-  /*
-   * Set FIFO watermark (number of unread sensor data TAG + 9 bytes
-   * stored in FIFO) to FIFO_WATERMARK samples
-   */
-  iis3dwb10is_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
-  iis3dwb10is_fifo_stop_on_wtm_set(p_sensor_drv, 0);
-  iis3dwb10is_fifo_batch_get(p_sensor_drv, &fifo_batch);
-  fifo_batch.batch_xl = 1;
-  fifo_batch.batch_temp = 0;
-  fifo_batch.batch_ts = IIS3DWB10IS_TMSTMP_NOT_BATCHED;
-  fifo_batch.batch_qvar = 0;
-  fifo_batch.batch_ispu = 0;
-  iis3dwb10is_fifo_batch_set(p_sensor_drv, fifo_batch);
-
-  /* Set FIFO mode to Stream mode (aka Continuous Mode) */
-  iis3dwb10is_fifo_mode_set(p_sensor_drv, IIS3DWB10IS_STREAM_MODE);
-  /* Enable Block Data Update */
-  iis3dwb10is_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
-  /* Enable FIFO */
-  iis3dwb10is_pin_int_route_get(p_sensor_drv, &int_route);
-
-  if (_this->p_irq_config != NULL)
-  {
-    int_route.int1_fifo_th = PROPERTY_ENABLE;
-  }
-  else
-  {
-    int_route.int1_fifo_th = PROPERTY_DISABLE;
-  }
-
-  if (_this->ispu_enable == false)
-  {
-    iis3dwb10is_pin_int_route_set(p_sensor_drv, int_route);
-  }
-
-#else
-
-  uint8_t buff[12];
-  iis3dwb10is_read_reg(p_sensor_drv, IIS3DWB10IS_OUTX_L_A, &buff[0], 12);
-
-  _this->samples_per_it = 1;
-  if (_this->p_irq_config != NULL)
-  {
-    if (_this->acc_sensor_status.is_active)
-    {
-      int_route.int1_drdy_xl = PROPERTY_ENABLE;
-    }
-  }
-  else
-  {
-    int_route.int1_drdy_xl = PROPERTY_DISABLE;
-  }
-  iis3dwb10is_pin_int_route_set(p_sensor_drv, int_route);
-
-#endif /* IIS3DWB10IS_FIFO_ENABLED */
-
 #if IIS3DWB10IS_FIFO_ENABLED
   iis3dwb10is_fifo_status_t fifo_status;
 
@@ -1870,7 +1891,6 @@ static sys_error_code_t IIS3DWB10ISTaskSensorInit(IIS3DWB10ISTask *_this)
   return res;
 }
 
-int32_t flag = 0;
 static sys_error_code_t IIS3DWB10ISTaskSensorReadData(IIS3DWB10ISTask *_this)
 {
   assert_param(_this != NULL);
@@ -1899,13 +1919,12 @@ static sys_error_code_t IIS3DWB10ISTaskSensorReadData(IIS3DWB10ISTask *_this)
       if (data_ptr[0] == IIS3DWB10IS_TAG_XL)
       {
 #if (HSD_USE_DUMMY_DATA == 1)
+        uint8_t dummy_buffer[3];
         for (int axis = 0; axis < 3; axis++)
         {
-          // Create a 24-bit dummy counter
-          int32_t dummy_value = (int32_t)dummyDataCounter_acc++;
-          dummy_value = save_20bit_to_24bit(dummy_value); // Convert to 24-bit
-          memcpy(p_acc, &dummy_value, 3); // Copy 3 bytes (24 bits)
-          p_acc += 3;
+          IIS3DWB10ISTaskEncodeDummyInt24(dummyDataCounter_acc++, dummy_buffer);
+          memcpy(p_acc, dummy_buffer, sizeof(dummy_buffer));
+          p_acc += sizeof(dummy_buffer);
         }
 #else
         iis3dwb10is_fifo_out_raw_t val;
@@ -1958,6 +1977,7 @@ static sys_error_code_t IIS3DWB10ISTaskSensorReadData(IIS3DWB10ISTask *_this)
   return res;
 }
 
+#if IIS3DWB10IS_FIFO_ENABLED
 static int32_t save_20bit_to_24bit(int32_t x_raw)
 {
   // Ensure x_raw is treated as a signed 20-bit value
@@ -1974,6 +1994,7 @@ static int32_t save_20bit_to_24bit(int32_t x_raw)
   // Return the 24-bit value (stored in a 32-bit container)
   return x_raw & 0xFFFFFF; // Mask to 24 bits
 }
+#endif /* IIS3DWB10IS_FIFO_ENABLED */
 
 static sys_error_code_t IIS3DWB10ISTaskSensorReadISPU(IIS3DWB10ISTask *_this)
 {
@@ -2061,6 +2082,9 @@ static sys_error_code_t IIS3DWB10ISTaskSensorSetODR(IIS3DWB10ISTask *_this, SMMe
     }
     else
     {
+      /* Changing odr must disable ISPU sensor: ISPU can work properly only when setup from UCF */
+      _this->ispu_enable = FALSE;
+      _this->ispu_sensor_status.is_active = FALSE;
 
       if (odr < 2600.0f)
       {
@@ -2361,13 +2385,11 @@ static void IIS3DWB10ISTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void IIS3DWB10ISTaskISPUTimerCallbackFunction(ULONG param)
@@ -2377,13 +2399,11 @@ static void IIS3DWB10ISTaskISPUTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_ISPU;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -2493,13 +2513,13 @@ static sys_error_code_t IIS3DWB10IS_FS_Sync(IIS3DWB10ISTask *_this)
   {
     switch (fs_xl)
     {
-      case IIS3DWB_50g:
+      case IIS3DWB10IS_50g:
         fs = 50.0f;
         break;
-      case IIS3DWB_100g:
+      case IIS3DWB10IS_100g:
         fs = 100.0f;
         break;
-      case IIS3DWB_200g:
+      case IIS3DWB10IS_200g:
         fs = 200.0f;
         break;
       default:

@@ -56,6 +56,8 @@
 #define SS_N_IN_ENDPOINTS                5U
 #define SS_N_OUT_ENDPOINTS               1U
 
+#define SS_CH_QUEUE_ITEMS                10U
+
 /* Override various options with default values already assigned in ux_api.h or ux_port.h. Please
  also refer to ux_port.h for descriptions on each of these options.  */
 

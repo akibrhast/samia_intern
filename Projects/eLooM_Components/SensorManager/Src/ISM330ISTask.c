@@ -774,9 +774,28 @@ sys_error_code_t ISM330ISTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
         ism330is_gy_data_rate_set(p_sensor_drv, ISM330IS_GY_ODR_OFF);
       }
 
+      p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
+      if (p_obj->p_irq_config == NULL)
+      {
+        tx_timer_deactivate(&p_obj->read_timer);
+      }
+      else
+      {
+        ISM330ISTaskConfigureIrqPin(p_obj, TRUE);
+      }
+      if (p_obj->p_ispu_config == NULL)
+      {
+        tx_timer_deactivate(&p_obj->ispu_timer);
+      }
+      else
+      {
+        ISM330ISTaskConfigureISPUPin(p_obj, TRUE);
+      }
+      /* Drop stale reports generated before the stop sequence completed. */
       tx_queue_flush(&p_obj->in_queue);
+      memset(p_obj->p_ispu_output_buff, 0, sizeof(p_obj->p_ispu_output_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ISM330IS: -> STATE1\r\n"));
   }
@@ -1791,8 +1810,13 @@ static sys_error_code_t ISM330ISTaskSensorInit(ISM330ISTask *_this)
   ism330is_xl_data_rate_t ism330is_odr_xl = ISM330IS_XL_ODR_OFF;
   ism330is_gy_data_rate_t ism330is_odr_g = ISM330IS_GY_ODR_OFF;
   int32_t ret_val = 0;
-//  ism330is_pin_int1_route_t int1_route = {0};
   ism330is_pin_int2_route_t int2_route = {0};
+
+  ret_val = ism330is_boot_set(p_sensor_drv, 1);
+  do
+  {
+    ism330is_boot_get(p_sensor_drv, &reg0);
+  } while (reg0);
 
   ret_val = ism330is_device_id_get(p_sensor_drv, (uint8_t *) &reg0);
   if (!ret_val)
@@ -1801,13 +1825,10 @@ static sys_error_code_t ISM330ISTaskSensorInit(ISM330ISTask *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ISM330IS: sensor - I am 0x%x.\r\n", reg0));
 
-//  ism330is_software_reset(p_sensor_drv); /* TODO: avoid reset: reset also sensor ODR --> break ISPU */
-  ism330is_mem_bank_set(p_sensor_drv, ISM330IS_MAIN_MEM_BANK);
-
-//  ism330is_pin_int1_route_get(p_sensor_drv, &int1_route);
   ism330is_pin_int2_route_get(p_sensor_drv, &int2_route);
   if (_this->p_irq_config != NULL)
   {
+    int2_route.ispu_sleep = 0;
     if (_this->acc_sensor_status.is_active && _this->gyro_sensor_status.is_active) /* Both subSensor is active */
     {
       int2_route.drdy_xl = 1;
@@ -1882,7 +1903,7 @@ static sys_error_code_t ISM330ISTaskSensorInit(ISM330ISTask *_this)
     }
     else if (_this->acc_sensor_status.type.mems.odr < 27.0f)
     {
-      ism330is_odr_xl = ISM330IS_XL_ODR_AT_26H_HP;
+      ism330is_odr_xl = ISM330IS_XL_ODR_AT_26Hz_HP;
     }
     else if (_this->acc_sensor_status.type.mems.odr < 53.0f)
     {
@@ -1931,7 +1952,7 @@ static sys_error_code_t ISM330ISTaskSensorInit(ISM330ISTask *_this)
     }
     else if (_this->gyro_sensor_status.type.mems.odr < 27.0f)
     {
-      ism330is_odr_g = ISM330IS_GY_ODR_AT_26H_HP;
+      ism330is_odr_g = ISM330IS_GY_ODR_AT_26Hz_HP;
     }
     else if (_this->gyro_sensor_status.type.mems.odr < 53.0f)
     {
@@ -1971,6 +1992,9 @@ static sys_error_code_t ISM330ISTaskSensorInit(ISM330ISTask *_this)
   {
     ism330is_gy_data_rate_set(p_sensor_drv, ISM330IS_GY_ODR_OFF);
   }
+
+  /* Clear possible pending drdy flags */
+  ism330is_ispu_clear_flags(p_sensor_drv);
 
   if ((_this->acc_sensor_status.is_active) && (_this->gyro_sensor_status.is_active))
   {
@@ -2620,13 +2644,11 @@ static void ISM330ISTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void ISM330ISTaskISPUTimerCallbackFunction(ULONG param)
@@ -2636,13 +2658,11 @@ static void ISM330ISTaskISPUTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_ISPU;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -2710,7 +2730,7 @@ static sys_error_code_t ISM330IS_ODR_Sync(ISM330ISTask *_this)
       case ISM330IS_XL_ODR_AT_12Hz5_HP:
         odr = 12.5f;
         break;
-      case ISM330IS_XL_ODR_AT_26H_HP:
+      case ISM330IS_XL_ODR_AT_26Hz_HP:
         odr = 26.0f;
         break;
       case ISM330IS_XL_ODR_AT_52Hz_HP:
@@ -2765,7 +2785,7 @@ static sys_error_code_t ISM330IS_ODR_Sync(ISM330ISTask *_this)
       case ISM330IS_GY_ODR_AT_12Hz5_HP:
         odr = 12.5f;
         break;
-      case ISM330IS_GY_ODR_AT_26H_HP:
+      case ISM330IS_GY_ODR_AT_26Hz_HP:
         odr = 26.0f;
         break;
       case ISM330IS_GY_ODR_AT_52Hz_HP:

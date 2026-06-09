@@ -351,6 +351,10 @@ uint8_t ism6hg256x_l_acc_set_odr(pnpl_ism6hg256x_l_acc_odr_t enum_id, char **res
   ret = SMSensorSetODR(ism6hg256x_l_acc_model.id, value);
   if (ret == SYS_NO_ERROR_CODE)
   {
+    if (app_model.ism6hg256x_mlc_ucf_valid == true)
+    {
+      app_model.ism6hg256x_mlc_ucf_valid = false;
+    }
 #if (HSD_USE_DUMMY_DATA != 1)
     ism6hg256x_l_acc_set_samples_per_ts((int32_t) value, NULL);
 #endif
@@ -395,6 +399,10 @@ uint8_t ism6hg256x_l_acc_set_fs(pnpl_ism6hg256x_l_acc_fs_t enum_id, char **respo
   ret = SMSensorSetFS(ism6hg256x_l_acc_model.id, value);
   if (ret == SYS_NO_ERROR_CODE)
   {
+    if (app_model.ism6hg256x_mlc_ucf_valid == true)
+    {
+      app_model.ism6hg256x_mlc_ucf_valid = false;
+    }
     float_t sensitivity = 0.0f;
     ism6hg256x_l_acc_get_sensitivity(&sensitivity);
     ism6hg256x_l_acc_set_st_ble_stream__acc_multiply_factor(sensitivity, NULL);
@@ -419,6 +427,10 @@ uint8_t ism6hg256x_l_acc_set_enable(bool value, char **response_message)
   }
   if (ret == SYS_NO_ERROR_CODE)
   {
+    if (app_model.ism6hg256x_mlc_ucf_valid == true)
+    {
+      app_model.ism6hg256x_mlc_ucf_valid = false;
+    }
     if (__stream_control(true) != PNPL_NO_ERROR_CODE)
     {
       if (response_message != NULL)

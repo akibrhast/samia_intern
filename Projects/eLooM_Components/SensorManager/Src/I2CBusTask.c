@@ -518,7 +518,6 @@ static int32_t I2CBusTaskWrite(void *p_sensor, uint16_t reg, uint8_t *data, uint
     .nTransmitReceive = transmit_receive
   };
 
-  // if (s_xI2cTaskObj.m_xInQueue != NULL) {//TODO: STF.Port - how to know if the task has been initialized ??
   if (SYS_IS_CALLED_FROM_ISR())
   {
     /* we cannot read and write in the I2C BUS from an ISR. Notify the error */
@@ -533,7 +532,6 @@ static int32_t I2CBusTaskWrite(void *p_sensor, uint16_t reg, uint8_t *data, uint
       res = SYS_I2CBUS_TASK_IO_ERROR_CODE;
     }
   }
-  // }
 
   if (!SYS_IS_ERROR_CODE(res))
   {
@@ -563,7 +561,6 @@ static int32_t I2CBusTaskRead(void *p_sensor, uint16_t reg, uint8_t *data, uint1
     .nTransmitReceive = transmit_receive
   };
 
-  // if (s_xI2cTaskObj.m_xInQueue != NULL) { //TODO: STF.Port - how to know if the task has been initialized ??
   if (SYS_IS_CALLED_FROM_ISR())
   {
     /* we cannot read and write in the I2C BUS from an ISR. Notify the error */
@@ -578,7 +575,6 @@ static int32_t I2CBusTaskRead(void *p_sensor, uint16_t reg, uint8_t *data, uint1
       res = SYS_I2CBUS_TASK_IO_ERROR_CODE;
     }
   }
-  // }
 
   if (!SYS_IS_ERROR_CODE(res))
   {

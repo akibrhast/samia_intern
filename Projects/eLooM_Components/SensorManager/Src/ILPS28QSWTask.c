@@ -55,6 +55,10 @@
 #define ILPS28QSW_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef ILPS28QSW_DYNAMIC_ADDR
+#define ILPS28QSW_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                  SYS_DEBUGF3(SYS_DBG_ILPS28QSW, level, message)
 
 #ifndef ILPS28QSW_TASK_CFG_I2C_ADDRESS
@@ -278,7 +282,7 @@ ISourceObservable *ILPS28QSWTaskGetPressSensorIF(ILPS28QSWTask *_this)
   return (ISourceObservable *) & (_this->sensor_if);
 }
 
-AManagedTaskEx *ILPS28QSWTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *ILPS28QSWTaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag)
 {
   ILPS28QSWTask *p_new_obj = SysAlloc(sizeof(ILPS28QSWTask));
 
@@ -293,6 +297,7 @@ AManagedTaskEx *ILPS28QSWTaskAlloc(const void *pIRQConfig, const void *pCSConfig
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->sensor_status.p_name, sTheClass.class_descriptor.p_name);
   }
@@ -300,9 +305,10 @@ AManagedTaskEx *ILPS28QSWTaskAlloc(const void *pIRQConfig, const void *pCSConfig
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *ILPS28QSWTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name)
+AManagedTaskEx *ILPS28QSWTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                          const char *p_name)
 {
-  ILPS28QSWTask *p_new_obj = (ILPS28QSWTask *)ILPS28QSWTaskAlloc(pIRQConfig, pCSConfig);
+  ILPS28QSWTask *p_new_obj = (ILPS28QSWTask *)ILPS28QSWTaskAlloc(pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->sensor_status.p_name, p_name);
@@ -310,7 +316,8 @@ AManagedTaskEx *ILPS28QSWTaskAllocSetName(const void *pIRQConfig, const void *pC
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *ILPS28QSWTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *ILPS28QSWTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                         boolean_t i3c_flag)
 {
   ILPS28QSWTask *p_obj = (ILPS28QSWTask *)p_mem_block;
 
@@ -326,15 +333,16 @@ AManagedTaskEx *ILPS28QSWTaskStaticAlloc(void *p_mem_block, const void *pIRQConf
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *)p_obj;
 }
 
 AManagedTaskEx *ILPS28QSWTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                                const char *p_name)
+                                                boolean_t i3c_flag, const char *p_name)
 {
-  ILPS28QSWTask *p_obj = (ILPS28QSWTask *)ILPS28QSWTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig);
+  ILPS28QSWTask *p_obj = (ILPS28QSWTask *)ILPS28QSWTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->sensor_status.p_name, p_name);
@@ -415,6 +423,15 @@ sys_error_code_t ILPS28QSWTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fu
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(ILPS28QSW_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(ILPS28QSW_ID, (uint8_t)(ILPS28QSW_TASK_CFG_I2C_ADDRESS >> 1), ILPS28QSW_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -543,14 +560,10 @@ sys_error_code_t ILPS28QSWTask_vtblDoEnterPowerMode(AManagedTask *_this, const E
       ilps28qsw_mode_get(p_sensor_drv, &val);
       val.odr = ILPS28QSW_ONE_SHOT;
       ilps28qsw_mode_set(p_sensor_drv, &val);
+      ilps28qsw_fifo_mode_set(p_sensor_drv, ILPS28QSW_BYPASS);
+      ilps28qsw_fifo_watermark_set(p_sensor_drv, 1);
 
-      ilps28qsw_fifo_md_t fifo_md;
-      fifo_md.watermark = 1;
-      fifo_md.operation = ILPS28QSW_BYPASS;
-      ilps28qsw_fifo_mode_set(p_sensor_drv, &fifo_md);
-
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_fifo_timer);
@@ -559,6 +572,8 @@ sys_error_code_t ILPS28QSWTask_vtblDoEnterPowerMode(AManagedTask *_this, const E
       {
         ILPS28QSWTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ILPS28QSW: -> STATE1\r\n"));
@@ -1559,7 +1574,6 @@ static sys_error_code_t ILPS28QSWTaskSensorSetFifoWM(ILPS28QSWTask * _this, SMMe
 {
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
-  ilps28qsw_fifo_md_t fifo_md;
 
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
   uint16_t ilps28qsw_wtm_level = (uint16_t)report.sensorMessage.nParam;
@@ -1571,10 +1585,8 @@ static sys_error_code_t ILPS28QSWTaskSensorSetFifoWM(ILPS28QSWTask * _this, SMMe
   }
   _this->samples_per_it = ilps28qsw_wtm_level;
 
-  fifo_md.watermark = _this->samples_per_it;
-  fifo_md.operation = ILPS28QSW_STREAM;
-
-  ilps28qsw_fifo_mode_set(p_sensor_drv, &fifo_md);
+  ilps28qsw_fifo_mode_set(p_sensor_drv, ILPS28QSW_STREAM);
+  ilps28qsw_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
 
   return res;
 }
@@ -1685,7 +1697,6 @@ static void ILPS28QSWTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
   UINT tx_queue_response = TX_SUCCESS;
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   tx_queue_response = tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT);
   if (TX_SUCCESS != tx_queue_response)
   {
@@ -1694,7 +1705,6 @@ static void ILPS28QSWTaskTimerCallbackFunction(ULONG param)
                                        tx_queue_response));
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

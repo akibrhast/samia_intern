@@ -462,7 +462,6 @@ static sys_error_code_t SPIBusTaskExecuteStep(AManagedTask *_this)
         break;
 
       default:
-        //TODO: STF -  need to notify the error
         break;
     }
   }
@@ -486,7 +485,6 @@ static int32_t SPIBusTaskWrite(void *p_sensor, uint16_t reg, uint8_t *p_data, ui
     .nDataSize = size
   };
 
-  // if (s_xTaskObj.m_xInQueue != NULL) {//TODO: STF.Port - how to know if the task has been initialized ??
   if (SYS_IS_CALLED_FROM_ISR())
   {
     /* we cannot read and write in the SPI BUS from an ISR. Notify the error */
@@ -501,7 +499,6 @@ static int32_t SPIBusTaskWrite(void *p_sensor, uint16_t reg, uint8_t *p_data, ui
       res = SYS_SPIBUS_TASK_IO_ERROR_CODE;
     }
   }
-//  }
 
   if (!SYS_IS_ERROR_CODE(res))
   {
@@ -528,7 +525,6 @@ static int32_t SPIBusTaskRead(void *p_sensor, uint16_t reg, uint8_t *p_data, uin
     .nDataSize = size
   };
 
-  // if (s_xTaskObj.m_xInQueue != NULL) { //TODO: STF.Port - how to know if the task has been initialized ??
   if (SYS_IS_CALLED_FROM_ISR())
   {
     /* we cannot read and write in the SPI BUS from an ISR. Notify the error */
@@ -543,7 +539,6 @@ static int32_t SPIBusTaskRead(void *p_sensor, uint16_t reg, uint8_t *p_data, uin
       res = SYS_SPIBUS_TASK_IO_ERROR_CODE;
     }
   }
-//  }
 
   if (!SYS_IS_ERROR_CODE(res))
   {

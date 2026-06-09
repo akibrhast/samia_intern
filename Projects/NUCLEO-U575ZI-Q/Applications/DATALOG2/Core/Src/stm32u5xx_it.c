@@ -169,15 +169,6 @@ void DebugMon_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32u5xx.s).                    */
 /******************************************************************************/
-
-/**
-  * @brief This function handles EXTI Line0 interrupt.
-  */
-void EXTI0_IRQHandler(void)
-{
-  ExtiDefISR(INT1_DLPC_Pin);
-}
-
 /**
   * @brief This function handles EXTI Line1 interrupt.
   */
@@ -200,22 +191,6 @@ void EXTI3_IRQHandler(void)
 void EXTI9_IRQHandler(void)
 {
   ExtiDefISR(INT1_DHCX_Pin);
-}
-
-/**
-  * @brief This function handles EXTI Line11 interrupt.
-  */
-void EXTI11_IRQHandler(void)
-{
-  ExtiDefISR(INT2_DHCX_Pin);
-}
-
-/**
-  * @brief This function handles EXTI Line13 interrupt.
-  */
-void EXTI13_IRQHandler(void)
-{
-  ExtiDefISR(USER_BUTTON_Pin);
 }
 
 /**

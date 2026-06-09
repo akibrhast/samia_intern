@@ -535,11 +535,10 @@ sys_error_code_t LIS2MDLTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       if (LIS2MDLTaskSensorIsActive(p_obj))
       {
         /* Deactivate the sensor */
-        lis2mdl_power_mode_set(p_sensor_drv, LIS2MDL_HIGH_RESOLUTION); //TODO: SO: Disable the low power
+        lis2mdl_power_mode_set(p_sensor_drv, LIS2MDL_LOW_POWER);
       }
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -548,6 +547,8 @@ sys_error_code_t LIS2MDLTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         LIS2MDLTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LIS2MDL: -> STATE1\r\n"));
@@ -1157,7 +1158,7 @@ static sys_error_code_t LIS2MDLTaskSensorInit(LIS2MDLTask *_this)
   /* it never switches anymore */
   lis2mdl_magnetic_raw_get(p_sensor_drv, (int16_t *) &_this->p_sensor_data_buff);
 
-  lis2mdl_reset_set(p_sensor_drv, 1);
+  lis2mdl_sw_reset(p_sensor_drv);
   lis2mdl_block_data_update_set(p_sensor_drv, 1);
   lis2mdl_self_test_set(p_sensor_drv, 0);
 
@@ -1446,13 +1447,11 @@ static void LIS2MDLTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

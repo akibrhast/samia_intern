@@ -65,6 +65,10 @@
 #define LSM6DSV320X_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LSM6DSV320X_DYNAMIC_ADDR
+#define LSM6DSV320X_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                   SYS_DEBUGF3(SYS_DBG_LSM6DSV320X, level, message)
 
 #ifndef HSD_USE_DUMMY_DATA
@@ -276,11 +280,13 @@ static float_t LSM6DSV320X_FindMin(float_t Val1, float_t Val2, float_t Val3);
   */
 static float_t __attribute__((unused)) LSM6DSV320X_FindMax(float_t Val1, float_t Val2, float_t Val3);
 
+#if LSM6DSV320X_FIFO_ENABLED
 /**
   * Sort the sensors based on the sensor's ODRs
   */
 static sys_error_code_t LSM6DSV320X_SensorSpeedSort(float_t ODR1, float_t ODR2, float_t ODR3, uint8_t *FastSensor,
                                                     uint8_t *MediumSensor, uint8_t *SlowSensor);
+#endif /* LSM6DSV320X_FIFO_ENABLED */
 
 /* Inline function forward declaration */
 /***************************************/
@@ -431,126 +437,24 @@ static LSM6DSV320XTaskClass_t sTheClass =
   {
     "lsm6dsv320x",
     COM_TYPE_ACC
-    /* TODO: Remove this
-    ,
-      {
-        1.875,
-        7.5,
-        15,
-        30,
-        60,
-        120,
-        240,
-        480,
-        960,
-        1920,
-        3840,
-        7680,
-        COM_END_OF_LIST_FLOAT,
-      },
-      {
-        2,
-        4,
-        8,
-        16,
-        COM_END_OF_LIST_FLOAT,
-      },
-      {
-        "acc",
-      },
-      "g",
-      {
-        0,
-        1000,
-      }*/
   },
 
   /* HIGH-G ACCELEROMETER DESCRIPTOR */
   {
     "lsm6dsv320x",
-    COM_TYPE_HG_ACC /* TODO: Remove this ,
-    {
-      480,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      32,
-      64,
-      128,
-      256,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "hgac",
-    },
-      "g",
-    {
-      0,
-      1000,
-    } */
+    COM_TYPE_HG_ACC
   },
 
   /* GYROSCOPE DESCRIPTOR */
   {
     "lsm6dsv320x",
-    COM_TYPE_GYRO /* todo: remove this,
-    {
-      7.5,
-      15,
-      30,
-      60,
-      120,
-      240,
-      420,
-      960,
-      1920,
-      3840,
-      7680,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      125,
-      250,
-      500,
-      1000,
-      2000,
-      4000,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "gyro",
-    },
-    "mdps",
-    {
-      0,
-      1000,
-    } */
+    COM_TYPE_GYRO
   },
 
   /* MLC DESCRIPTOR */
   {
     "lsm6dsv320x",
-    COM_TYPE_MLC /* todo: remove this,
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      1,
-      COM_END_OF_LIST_FLOAT,
-    },
-    {
-      "mlc",
-    },
-    "out",
-    {
-      0,
-      1,
-    }*/
+    COM_TYPE_MLC
   },
 
   /* class (PM_STATE, ExecuteStepFunc) map */
@@ -591,7 +495,8 @@ ISensorLL_t *LSM6DSV320XTaskGetSensorLLIF(LSM6DSV320XTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                     boolean_t i3c_flag)
 {
   LSM6DSV320XTask *p_new_obj = SysAlloc(sizeof(LSM6DSV320XTask));
 
@@ -614,6 +519,7 @@ AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCCon
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->acc_sensor_status.p_name, sTheClass.acc_class_descriptor.p_name);
     strcpy(p_new_obj->hg_acc_sensor_status.p_name, sTheClass.hg_acc_class_descriptor.p_name);
@@ -625,9 +531,9 @@ AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCCon
 }
 
 AManagedTaskEx *LSM6DSV320XTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                            const char *p_name)
+                                            boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV320XTask *p_new_obj = (LSM6DSV320XTask *) LSM6DSV320XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV320XTask *p_new_obj = (LSM6DSV320XTask *)LSM6DSV320XTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->acc_sensor_status.p_name, p_name);
@@ -639,7 +545,7 @@ AManagedTaskEx *LSM6DSV320XTaskAllocSetName(const void *pIRQConfig, const void *
 }
 
 AManagedTaskEx *LSM6DSV320XTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                           const void *pCSConfig)
+                                           const void *pCSConfig, boolean_t i3c_flag)
 {
   LSM6DSV320XTask *p_obj = (LSM6DSV320XTask *) p_mem_block;
 
@@ -662,15 +568,16 @@ AManagedTaskEx *LSM6DSV320XTaskStaticAlloc(void *p_mem_block, const void *pIRQCo
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *LSM6DSV320XTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                  const void *pCSConfig, const char *p_name)
+                                                  const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  LSM6DSV320XTask *p_obj = (LSM6DSV320XTask *) LSM6DSV320XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  LSM6DSV320XTask *p_obj = (LSM6DSV320XTask *) LSM6DSV320XTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->acc_sensor_status.p_name, p_name);
@@ -789,6 +696,15 @@ sys_error_code_t LSM6DSV320XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
   }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LSM6DSV320X_ID, (uint8_t)(LSM6DSV320X_I2C_ADD_H >> 1), LSM6DSV320X_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
   else
   {
     p_obj->p_sensor_bus_if = I2CBusIFAlloc(LSM6DSV320X_ID, LSM6DSV320X_I2C_ADD_H, 0);
@@ -899,6 +815,7 @@ sys_error_code_t LSM6DSV320XTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_
   p_obj->gyro_samples_count = 0;
   p_obj->fifo_level = 0;
   p_obj->samples_per_it = 0;
+  p_obj->first_data_ready = 0;
   _this->m_pfPMState2FuncMap = sTheClass.p_pm_state2func_map;
 
   *pTaskCode = AMTExRun;
@@ -963,18 +880,21 @@ sys_error_code_t LSM6DSV320XTask_vtblDoEnterPowerMode(AManagedTask *_this, const
   {
     if (ActivePowerMode == E_POWER_MODE_SENSORS_ACTIVE)
     {
-      /* Deactivate the sensor */
-      lsm6dsv320x_xl_data_rate_set(p_sensor_drv, LSM6DSV320X_ODR_OFF);
-      lsm6dsv320x_hg_xl_data_rate_set(p_sensor_drv, LSM6DSV320X_HG_XL_ODR_OFF, 0);
-      lsm6dsv320x_gy_data_rate_set(p_sensor_drv, LSM6DSV320X_ODR_OFF);
-      lsm6dsv320x_fifo_gy_batch_set(p_sensor_drv, LSM6DSV320X_GY_NOT_BATCHED);
-      lsm6dsv320x_fifo_xl_batch_set(p_sensor_drv, LSM6DSV320X_XL_NOT_BATCHED);
-      lsm6dsv320x_fifo_hg_xl_batch_set(p_sensor_drv, 0);
-      lsm6dsv320x_fifo_mode_set(p_sensor_drv, LSM6DSV320X_BYPASS_MODE);
+      if (LSM6DSV320XTaskSensorIsActive(p_obj))
+      {
+        /* Deactivate the sensor */
+        lsm6dsv320x_xl_data_rate_set(p_sensor_drv, LSM6DSV320X_ODR_OFF);
+        lsm6dsv320x_hg_xl_data_rate_set(p_sensor_drv, LSM6DSV320X_HG_XL_ODR_OFF, 0);
+        lsm6dsv320x_gy_data_rate_set(p_sensor_drv, LSM6DSV320X_ODR_OFF);
+        lsm6dsv320x_fifo_gy_batch_set(p_sensor_drv, LSM6DSV320X_GY_NOT_BATCHED);
+        lsm6dsv320x_fifo_xl_batch_set(p_sensor_drv, LSM6DSV320X_XL_NOT_BATCHED);
+        lsm6dsv320x_fifo_hg_xl_batch_set(p_sensor_drv, 0);
+        lsm6dsv320x_fifo_mode_set(p_sensor_drv, LSM6DSV320X_BYPASS_MODE);
+      }
       p_obj->samples_per_it = 0;
+      p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -991,6 +911,8 @@ sys_error_code_t LSM6DSV320XTask_vtblDoEnterPowerMode(AManagedTask *_this, const
       {
         LSM6DSV320XTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LSM6DSV320X: -> STATE1\r\n"));
@@ -1863,8 +1785,6 @@ static sys_error_code_t LSM6DSV320XTaskExecuteStepState1(AManagedTask *_this)
   return res;
 }
 
-#if 0
-// original function
 static sys_error_code_t LSM6DSV320XTaskExecuteStepDatalog(AManagedTask *_this)
 {
   assert_param(_this != NULL);
@@ -1895,561 +1815,249 @@ static sys_error_code_t LSM6DSV320XTaskExecuteStepDatalog(AManagedTask *_this)
         res = LSM6DSV320XTaskSensorReadData(p_obj);
         if (!SYS_IS_ERROR_CODE(res))
         {
-#if LSM6DSV320X_FIFO_ENABLED
-          if (p_obj->fifo_level != 0)
+          if (p_obj->first_data_ready >= p_obj->first_data_ready_threshold)
           {
+#if LSM6DSV320X_FIFO_ENABLED
+            if (p_obj->fifo_level != 0)
+            {
 #endif
-            // notify the listeners...
-            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-            double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
-            p_obj->prev_timestamp = timestamp;
+              // notify the listeners...
+              double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
+              double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
+              p_obj->prev_timestamp = timestamp;
 
-            DataEvent_t evt_acc, evt_gyro;
+              DataEvent_t evt_hg_acc, evt_acc, evt_gyro;
 
 #if LSM6DSV320X_FIFO_ENABLED
-            if ((p_obj->acc_sensor_status.is_active) && (p_obj->gyro_sensor_status.is_active)) /* Read both ACC and GYRO */
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
-
-              if (p_obj->acc_sensor_status.type.mems.odr > p_obj->gyro_sensor_status.type.mems.odr) /* Acc is faster than Gyro */
+              float_t hg_acc_odr = 0;
+              float_t acc_odr = 0;
+              float_t gyro_odr = 0;
+              bool SensorActive = false;
+              if (p_obj->hg_acc_sensor_status.is_active)
               {
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                /* update measuredODR */
+                p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->hg_acc_samples_count / (float_t) delta_timestamp;
+                /* used for sensor speed sort */
+                hg_acc_odr = p_obj->hg_acc_sensor_status.type.mems.odr;
+                SensorActive = true;
               }
-              else
-              {
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              }
-
-            }
-            else /* Only 1 out of 2 is active */
-            {
               if (p_obj->acc_sensor_status.is_active)
               {
                 /* update measuredODR */
                 p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->acc_samples_count, 3);
-                DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                /* used for sensor speed sort */
+                acc_odr = p_obj->acc_sensor_status.type.mems.odr;
+                SensorActive = true;
               }
-              else if (p_obj->gyro_sensor_status.is_active)
+              if (p_obj->gyro_sensor_status.is_active)
               {
                 /* update measuredODR */
                 p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
+                /* used for sensor speed sort */
+                gyro_odr = p_obj->gyro_sensor_status.type.mems.odr;
+                SensorActive = true;
+              }
 
-                /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                 * [X0, Y0, Z0]
-                 * [X1, Y1, Z1]
-                 * ...
-                 * [Xm-1, Ym-1, Zm-1]
-                 */
-                EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                         p_obj->gyro_samples_count, 3);
-                DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+              if (true == SensorActive)
+              {
+                uint8_t FastSensor = 0;
+                uint8_t MediumSensor = 0;
+                uint8_t SlowSensor = 0;
 
-                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                /* Sort sensors by speed */
+                LSM6DSV320X_SensorSpeedSort(hg_acc_odr, acc_odr, gyro_odr, &FastSensor, &MediumSensor, &SlowSensor);
+
+                if (p_obj->hg_acc_sensor_status.is_active)
+                {
+                  if (1 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  else if (1 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_hg_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->hg_acc_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
+                }
+
+                if (p_obj->acc_sensor_status.is_active)
+                {
+                  if (2 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  else if (2 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->acc_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
+                }
+
+                if (p_obj->gyro_sensor_status.is_active)
+                {
+                  if (3 == FastSensor)
+                  {
+                    // Highest ODR, use largest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  else if (3 == MediumSensor)
+                  {
+                    // Middle ODR, use intermediate buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  else
+                  {
+                    // Slowest ODR, use smallest buffer
+                    /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
+                     * [X0, Y0, Z0]
+                     * [X1, Y1, Z1]
+                     * ...
+                     * [Xm-1, Ym-1, Zm-1]
+                     */
+                    EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
+                             p_obj->gyro_samples_count, 3);
+                  }
+                  DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+                }
+                if (p_obj->hg_acc_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc,
+                                     NULL);
+                }
+                if (p_obj->acc_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                }
+                if (p_obj->gyro_sensor_status.is_active)
+                {
+                  IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                }
               }
               else
               {
                 res = SYS_INVALID_PARAMETER_ERROR_CODE;
               }
-            }
 #else
-            if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
-              DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-              IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-              p_obj->acc_drdy = 0;
-            }
-            if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
-              DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-              IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              p_obj->gyro_drdy = 0;
-            }
-#endif
-            SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("LSM6DSV320X: ts = %f\r\n", (float_t)timestamp));
-#if LSM6DSV320X_FIFO_ENABLED
-          }
-#endif
-        }
-//            if(p_obj->pIRQConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
-        break;
-      }
-
-      case SM_MESSAGE_ID_DATA_READY_MLC:
-      {
-//          if(p_obj->pMLCConfig == NULL)
-//          {
-//            if(TX_SUCCESS
-//                != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-//                                   AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-//            {
-//              return SYS_UNDEFINED_ERROR_CODE;
-//            }
-//          }
-        res = LSM6DSV320XTaskSensorReadMLC(p_obj);
-        if (!SYS_IS_ERROR_CODE(res))
-        {
-          // notify the listeners...
-          double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-
-          if (p_obj->mlc_enable)
-          {
-            EMD_Init(&p_obj->data, p_obj->p_mlc_sensor_data_buff, E_EM_UINT8, E_EM_MODE_INTERLEAVED, 2, 1, 5);
-
-            DataEvent_t evt;
-
-            DataEventInit((IEvent *) &evt, p_obj->p_mlc_event_src, &p_obj->data, timestamp, p_obj->mlc_id);
-            IEventSrcSendEvent(p_obj->p_mlc_event_src, (IEvent *) &evt, NULL);
-          }
-          else
-          {
-            res = SYS_INVALID_PARAMETER_ERROR_CODE;
-          }
-
-        }
-//            if(p_obj->pMLCConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
-        break;
-      }
-
-      case SM_MESSAGE_ID_SENSOR_CMD:
-      {
-        switch (report.sensorMessage.nCmdID)
-        {
-          case SENSOR_CMD_ID_INIT:
-            res = LSM6DSV320XTaskSensorInit(p_obj);
-            if (!SYS_IS_ERROR_CODE(res))
-            {
-              if (p_obj->acc_sensor_status.is_active == true || p_obj->gyro_sensor_status.is_active == true)
+              if (p_obj->hg_acc_sensor_status.is_active && p_obj->hg_acc_drdy)
               {
-                if (p_obj->pIRQConfig == NULL)
-                {
-                  if (TX_SUCCESS
-                      != tx_timer_change(&p_obj->read_timer, AMT_MS_TO_TICKS(p_obj->lsm6dsv320x_task_cfg_timer_period_ms),
-                                         AMT_MS_TO_TICKS(p_obj->lsm6dsv320x_task_cfg_timer_period_ms)))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                  if (TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                }
-                else
-                {
-                  LSM6DSV320XTaskConfigureIrqPin(p_obj, FALSE);
-                }
-              }
-            }
-            if (!SYS_IS_ERROR_CODE(res))
-            {
-              if (p_obj->mlc_sensor_status.is_active == true)
-              {
-                if (p_obj->pMLCConfig == NULL)
-                {
-                  if (TX_SUCCESS
-                      != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-                                         AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                  if (TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-                  {
-                    res = SYS_UNDEFINED_ERROR_CODE;
-                  }
-                }
-                else
-                {
-                  LSM6DSV320XTaskConfigureMLCPin(p_obj, FALSE);
-                }
-              }
-            }
-            break;
-          case SENSOR_CMD_ID_SET_ODR:
-            res = LSM6DSV320XTaskSensorSetODR(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_SET_FS:
-            res = LSM6DSV320XTaskSensorSetFS(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_SET_FIFO_WM:
-            res = LSM6DSV320XTaskSensorSetFifoWM(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_ENABLE:
-            res = LSM6DSV320XTaskSensorEnable(p_obj, report);
-            break;
-          case SENSOR_CMD_ID_DISABLE:
-            res = LSM6DSV320XTaskSensorDisable(p_obj, report);
-            break;
-          default:
-            /* unwanted report */
-            res = SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE;
-            SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE)
-            ;
+                /* update measuredODR */
+                p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->hg_acc_samples_count / (float_t)delta_timestamp;
 
-            SYS_DEBUGF(SYS_DBG_LEVEL_WARNING, ("LSM6DSV320X: unexpected report in Datalog: %i\r\n", report.messageID));
-            break;
-        }
-        break;
-      }
-
-      default:
-        /* unwanted report */
-        res = SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE;
-        SYS_SET_SERVICE_LEVEL_ERROR_CODE(SYS_SENSOR_TASK_UNKNOWN_MSG_ERROR_CODE)
-        ;
-
-        SYS_DEBUGF(SYS_DBG_LEVEL_WARNING, ("LSM6DSV320X: unexpected report in Datalog: %i\r\n", report.messageID));
-        break;
-    }
-  }
-
-  return res;
-}
-#endif
-
-static sys_error_code_t LSM6DSV320XTaskExecuteStepDatalog(AManagedTask *_this)
-{
-  assert_param(_this != NULL);
-  sys_error_code_t res = SYS_NO_ERROR_CODE;
-  LSM6DSV320XTask *p_obj = (LSM6DSV320XTask *) _this;
-  SMMessage report =
-  {
-    0
-  };
-
-  AMTExSetInactiveState((AManagedTaskEx *) _this, TRUE);
-  if (TX_SUCCESS == tx_queue_receive(&p_obj->in_queue, &report, TX_WAIT_FOREVER))
-  {
-    AMTExSetInactiveState((AManagedTaskEx *) _this, FALSE);
-
-    switch (report.messageID)
-    {
-      case SM_MESSAGE_ID_FORCE_STEP:
-      {
-        // do nothing. I need only to resume.
-        __NOP();
-        break;
-      }
-
-      case SM_MESSAGE_ID_DATA_READY:
-      {
-        SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("LSM6DSV320X: new data.\r\n"));
-
-        res = LSM6DSV320XTaskSensorReadData(p_obj);
-        if (!SYS_IS_ERROR_CODE(res))
-        {
-#if LSM6DSV320X_FIFO_ENABLED
-          if (p_obj->fifo_level != 0)
-          {
-#endif
-            // notify the listeners...
-            double_t timestamp = report.sensorDataReadyMessage.fTimestamp;
-            double_t delta_timestamp = timestamp - p_obj->prev_timestamp;
-            p_obj->prev_timestamp = timestamp;
-
-            DataEvent_t evt_hg_acc, evt_acc, evt_gyro;
-            float_t hg_acc_odr = 0;
-            float_t acc_odr = 0;
-            float_t gyro_odr = 0;
-            bool SensorActive = false;
-
-#if LSM6DSV320X_FIFO_ENABLED
-            if (p_obj->hg_acc_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->hg_acc_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              hg_acc_odr = p_obj->hg_acc_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-            if (p_obj->acc_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t) p_obj->acc_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              acc_odr = p_obj->acc_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-            if (p_obj->gyro_sensor_status.is_active)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t) p_obj->gyro_samples_count / (float_t) delta_timestamp;
-              /* used for sensor speed sort */
-              gyro_odr = p_obj->gyro_sensor_status.type.mems.odr;
-              SensorActive = true;
-            }
-
-            if (true == SensorActive)
-            {
-              uint8_t FastSensor = 0;
-              uint8_t MediumSensor = 0;
-              uint8_t SlowSensor = 0;
-
-              /* Sort sensors by speed */
-              LSM6DSV320X_SensorSpeedSort(hg_acc_odr, acc_odr, gyro_odr, &FastSensor, &MediumSensor, &SlowSensor);
-
-              if (p_obj->hg_acc_sensor_status.is_active)
-              {
-                if (1 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
-                else if (1 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_hg_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->hg_acc_samples_count, 3);
-                }
+                EMD_Init(&p_obj->data_hg_acc, p_obj->p_hg_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->hg_acc_samples_count,
+                         3);
                 DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
-              }
 
-              if (p_obj->acc_sensor_status.is_active)
+                IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc, NULL);
+                p_obj->hg_acc_drdy = 0;
+              }
+              if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
               {
-                if (2 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
-                else if (2 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_acc, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->acc_samples_count, 3);
-                }
+                /* update measuredODR */
+                p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
+
+                EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
                 DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-              }
 
-              if (p_obj->gyro_sensor_status.is_active)
+                IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
+                p_obj->acc_drdy = 0;
+              }
+              if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
               {
-                if (3 == FastSensor)
-                {
-                  // Highest ODR, use largest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_fast_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
-                else if (3 == MediumSensor)
-                {
-                  // Middle ODR, use intermediate buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_medium_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
-                else
-                {
-                  // Slowest ODR, use smallest buffer
-                  /* Create a bidimensional data interleaved [m x 3], m is the number of samples in the sensor queue:
-                   * [X0, Y0, Z0]
-                   * [X1, Y1, Z1]
-                   * ...
-                   * [Xm-1, Ym-1, Zm-1]
-                   */
-                  EMD_Init(&p_obj->data_gyro, p_obj->p_slow_sensor_data_buff, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2,
-                           p_obj->gyro_samples_count, 3);
-                }
+                /* update measuredODR */
+                p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
+
+                EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
                 DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
+
+                IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
+                p_obj->gyro_drdy = 0;
               }
-              if (p_obj->hg_acc_sensor_status.is_active)
-              {
-                IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc,
-                                   NULL);
-              }
-              if (p_obj->acc_sensor_status.is_active) { IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL); }
-              if (p_obj->gyro_sensor_status.is_active) { IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL); }
-            }
-            else
-            {
-              res = SYS_INVALID_PARAMETER_ERROR_CODE;
-            }
-#else
-            if (p_obj->hg_acc_sensor_status.is_active && p_obj->hg_acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->hg_acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->hg_acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_hg_acc, p_obj->p_hg_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->hg_acc_samples_count,
-                       3);
-              DataEventInit((IEvent *) &evt_hg_acc, p_obj->p_hg_acc_event_src, &p_obj->data_hg_acc, timestamp, p_obj->hg_acc_id);
-
-              IEventSrcSendEvent(p_obj->p_hg_acc_event_src, (IEvent *) &evt_hg_acc, NULL);
-              p_obj->hg_acc_drdy = 0;
-            }
-            if (p_obj->acc_sensor_status.is_active && p_obj->acc_drdy)
-            {
-              /* update measuredODR */
-              p_obj->acc_sensor_status.type.mems.measured_odr = (float_t)p_obj->acc_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_acc, p_obj->p_acc_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->acc_samples_count, 3);
-              DataEventInit((IEvent *) &evt_acc, p_obj->p_acc_event_src, &p_obj->data_acc, timestamp, p_obj->acc_id);
-
-              IEventSrcSendEvent(p_obj->p_acc_event_src, (IEvent *) &evt_acc, NULL);
-              p_obj->acc_drdy = 0;
-            }
-            if (p_obj->gyro_sensor_status.is_active && p_obj->gyro_drdy)
-            {
-              /* update measuredODR */
-              p_obj->gyro_sensor_status.type.mems.measured_odr = (float_t)p_obj->gyro_samples_count / (float_t)delta_timestamp;
-
-              EMD_Init(&p_obj->data_gyro, p_obj->p_gyro_sample, E_EM_INT16, E_EM_MODE_INTERLEAVED, 2, p_obj->gyro_samples_count, 3);
-              DataEventInit((IEvent *) &evt_gyro, p_obj->p_gyro_event_src, &p_obj->data_gyro, timestamp, p_obj->gyro_id);
-
-              IEventSrcSendEvent(p_obj->p_gyro_event_src, (IEvent *) &evt_gyro, NULL);
-              p_obj->gyro_drdy = 0;
-            }
 #endif
-            SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("LSM6DSV320X: ts = %f\r\n", (float_t)timestamp));
+              SYS_DEBUGF(SYS_DBG_LEVEL_ALL, ("LSM6DSV320X: ts = %f\r\n", (float_t)timestamp));
 #if LSM6DSV320X_FIFO_ENABLED
-          }
+            }
 #endif
+          }
+          else
+          {
+            p_obj->first_data_ready++;
+          }
         }
-//            if(p_obj->pIRQConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->read_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
         break;
       }
 
       case SM_MESSAGE_ID_DATA_READY_MLC:
       {
-//          if(p_obj->pMLCConfig == NULL)
-//          {
-//            if(TX_SUCCESS
-//                != tx_timer_change(&p_obj->mlc_timer, AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS),
-//                                   AMT_MS_TO_TICKS(LSM6DSV320X_TASK_CFG_MLC_TIMER_PERIOD_MS)))
-//            {
-//              return SYS_UNDEFINED_ERROR_CODE;
-//            }
-//          }
         res = LSM6DSV320XTaskSensorReadMLC(p_obj);
         if (!SYS_IS_ERROR_CODE(res))
         {
@@ -2469,16 +2077,7 @@ static sys_error_code_t LSM6DSV320XTaskExecuteStepDatalog(AManagedTask *_this)
           {
             res = SYS_INVALID_PARAMETER_ERROR_CODE;
           }
-
         }
-//            if(p_obj->pMLCConfig == NULL)
-//            {
-//              if(TX_SUCCESS != tx_timer_activate(&p_obj->mlc_timer))
-//              {
-//                res = SYS_UNDEFINED_ERROR_CODE;
-//              }
-//            }
-
         break;
       }
 
@@ -2647,16 +2246,10 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
 
   uint8_t mlc_int1;
   uint8_t mlc_int2;
-  lsm6dsv320x_pin_int_route_t int1_route = {0};
-
-  lsm6dsv320x_reset_t rst;
+  lsm6dsv320x_pin_int1_route_t int1_route = {0};
 
   /* Restore default configuration */
-  ret_val = lsm6dsv320x_reset_set(p_sensor_drv, LSM6DSV320X_RESTORE_CTRL_REGS);
-  do
-  {
-    lsm6dsv320x_reset_get(p_sensor_drv, &rst);
-  } while (rst != LSM6DSV320X_READY);
+  ret_val = lsm6dsv320x_reboot(p_sensor_drv);
 
   /* Enable Block Data Update */
   ret_val = lsm6dsv320x_block_data_update_set(p_sensor_drv, PROPERTY_ENABLE);
@@ -2971,6 +2564,7 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
   lsm6dsv320x_fifo_mode_set(p_sensor_drv, LSM6DSV320X_STREAM_MODE);
 
 #else
+  lsm6dsv320x_pin_int_route_hg_t int1_route_hg = {0};
 
   uint8_t buff[6];
   lsm6dsv320x_read_reg(p_sensor_drv, LSM6DSV320X_OUTX_L_A, &buff[0], 6);
@@ -2991,7 +2585,7 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
     {
       if (_this->hg_acc_sensor_status.is_active)
       {
-        int1_route.drdy_hg_xl = PROPERTY_ENABLE;
+        int1_route_hg.drdy_hg_xl = PROPERTY_ENABLE;
       }
       if (_this->acc_sensor_status.is_active)
       {
@@ -3005,11 +2599,12 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
   }
   else
   {
-    int1_route.drdy_hg_xl = PROPERTY_DISABLE;
+    int1_route_hg.drdy_hg_xl = PROPERTY_DISABLE;
     int1_route.drdy_xl = PROPERTY_DISABLE;
     int1_route.drdy_g = PROPERTY_DISABLE;
   }
   lsm6dsv320x_pin_int1_route_set(p_sensor_drv, &int1_route);
+  lsm6dsv320x_pin_int1_route_hg_set(p_sensor_drv, &int1_route_hg);
 
 #endif /* LSM6DSV320X_FIFO_ENABLED */
 
@@ -3031,11 +2626,11 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
   }
   else
   {
+    lsm6dsv320x_mlc_set(p_sensor_drv, LSM6DSV320X_MLC_ON);
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -3066,6 +2661,16 @@ static sys_error_code_t LSM6DSV320XTaskSensorInit(LSM6DSV320XTask *_this)
   _this->lsm6dsv320x_task_cfg_timer_period_ms = (uint16_t)(1000.0f / _this->lsm6dsv320x_task_cfg_timer_period_ms);
 #endif
 
+  if (_this->hg_acc_sensor_status.type.mems.odr > 1920.0f || _this->acc_sensor_status.type.mems.odr > 1920.0f
+      || _this->gyro_sensor_status.type.mems.odr > 1920.0f)
+  {
+    _this->first_data_ready_threshold = 27;
+  }
+  else
+  {
+    _this->first_data_ready_threshold = 4;
+  }
+
   return res;
 }
 
@@ -3074,9 +2679,9 @@ static sys_error_code_t LSM6DSV320XTaskSensorReadData(LSM6DSV320XTask *_this)
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
-  uint16_t samples_per_it = _this->samples_per_it;
 
 #if LSM6DSV320X_FIFO_ENABLED
+  uint16_t samples_per_it = _this->samples_per_it;
   uint8_t reg[2];
   uint16_t i;
 
@@ -3618,7 +3223,6 @@ static sys_error_code_t LSM6DSV320XTaskSensorSetFS(LSM6DSV320XTask *_this, SMMes
       fs = 320.0f;
     }
 
-
     if (!SYS_IS_ERROR_CODE(res))
     {
       _this->hg_acc_sensor_status.type.mems.fs = fs;
@@ -3972,13 +3576,11 @@ static void LSM6DSV320XTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void LSM6DSV320XTaskMLCTimerCallbackFunction(ULONG param)
@@ -3988,13 +3590,11 @@ static void LSM6DSV320XTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */
@@ -4360,6 +3960,7 @@ static float_t LSM6DSV320X_FindMin(float_t Val1,
   return Min;
 }
 
+#if LSM6DSV320X_FIFO_ENABLED
 static sys_error_code_t LSM6DSV320X_SensorSpeedSort(float_t ODR1,
                                                     float_t ODR2,
                                                     float_t ODR3,
@@ -4414,3 +4015,4 @@ static sys_error_code_t LSM6DSV320X_SensorSpeedSort(float_t ODR1,
   }
   return res;
 }
+#endif /* LSM6DSV320X_FIFO_ENABLED */

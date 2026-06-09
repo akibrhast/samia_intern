@@ -760,6 +760,11 @@
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
             </File>
             <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
+            </File>
+            <File>
               <FileName>I2CBusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</FilePath>
@@ -3456,6 +3461,11 @@
               <FileName>ABusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusIF.c</FileName>

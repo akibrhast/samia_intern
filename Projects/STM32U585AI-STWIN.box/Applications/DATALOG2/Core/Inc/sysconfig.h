@@ -31,8 +31,8 @@
 // *********************
 
 #define BOARD_ID_BOXA           0x0E
-#define BLE_FW_ID_DATALOG2_BOXA 0x38
-#define USB_FW_ID_DATALOG2_BOXA 0x38
+#define BLE_FW_ID_DATALOG2_BOXA 0x3B
+#define USB_FW_ID_DATALOG2_BOXA 0x3B
 
 // Other hardware configuration
 // ****************************

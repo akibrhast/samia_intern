@@ -819,11 +819,6 @@
 			<locationURI>PARENT-1-PROJECT_LOC/mx/Inc/main.h</locationURI>
 		</link>
 		<link>
-			<name>User/mx/Inc/memorymap.h</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/mx/Inc/memorymap.h</locationURI>
-		</link>
-		<link>
 			<name>User/mx/Inc/mx.h</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/mx/Inc/mx.h</locationURI>
@@ -877,11 +872,6 @@
 			<name>User/mx/Src/icache.c</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/mx/Src/icache.c</locationURI>
-		</link>
-		<link>
-			<name>User/mx/Src/memorymap.c</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/mx/Src/memorymap.c</locationURI>
 		</link>
 		<link>
 			<name>User/mx/Src/mx.c</name>
@@ -974,16 +964,6 @@
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Inc/IIS2MDCTask_vtbl.h</locationURI>
 		</link>
 		<link>
-			<name>eLooM_Components/SensorManager/Inc/IMP34DT05Task.h</name>
-			<type>1</type>
-			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Inc/IMP34DT05Task.h</locationURI>
-		</link>
-		<link>
-			<name>eLooM_Components/SensorManager/Inc/IMP34DT05Task_vtbl.h</name>
-			<type>1</type>
-			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Inc/IMP34DT05Task_vtbl.h</locationURI>
-		</link>
-		<link>
 			<name>eLooM_Components/SensorManager/Inc/ISM330DHCXTask.h</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Inc/ISM330DHCXTask.h</locationURI>
@@ -1069,6 +1049,11 @@
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I2CBusTask.c</locationURI>
 		</link>
 		<link>
+			<name>eLooM_Components/SensorManager/Src/I3CBusIF.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I3CBusIF.c</locationURI>
+		</link>
+		<link>
 			<name>eLooM_Components/SensorManager/Src/IIS2DLPCTask.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/IIS2DLPCTask.c</locationURI>
@@ -1077,11 +1062,6 @@
 			<name>eLooM_Components/SensorManager/Src/IIS2MDCTask.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/IIS2MDCTask.c</locationURI>
-		</link>
-		<link>
-			<name>eLooM_Components/SensorManager/Src/IMP34DT05Task.c</name>
-			<type>1</type>
-			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/IMP34DT05Task.c</locationURI>
 		</link>
 		<link>
 			<name>eLooM_Components/SensorManager/Src/ISM330DHCXTask.c</name>

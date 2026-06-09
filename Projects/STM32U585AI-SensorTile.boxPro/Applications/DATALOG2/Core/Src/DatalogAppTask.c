@@ -108,7 +108,6 @@ struct _DatalogAppTask
 
   ICommandParse_t parser;
 
-//TODO could be more useful to have a CommandParse Class? (ICommandParse + PnPLCommand_t)
   PnPLCommand_t outPnPLCommand;
 
   /** SensorLL interface for MLC **/
@@ -918,7 +917,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition Start Failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -953,7 +951,6 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
           message = "Error: Acquisition start failure";
           PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
           DatalogApp_Task_command_response_cb(responseJSON, size);
-          /* TODO: send msg to util task or error led;*/
           return 1;
         }
       }
@@ -1045,8 +1042,6 @@ void DatalogApp_Task_command_response_cb(char *response_msg, uint32_t size)
 
 uint8_t DatalogAppTask_save_config_vtbl(void)
 {
-  //TODO register a callback in FileX to be called as soon as the file is saved
-
   DatalogAppTask *p_obj = getDatalogAppTask();
   char *responseJSON;
   uint32_t size;
@@ -1058,7 +1053,6 @@ uint8_t DatalogAppTask_save_config_vtbl(void)
       char *message = "Error: SD Failure";
       PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
       DatalogApp_Task_command_response_cb(responseJSON, size);
-      /* TODO: send msg to util task or error led;*/
       return 1;
     }
   }
@@ -1528,8 +1522,18 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
   SUcfProtocol_t ucf_protocol;
   UCFP_Init(&ucf_protocol, p_obj->ispu_sensor_ll);
 
-  /* Enable multi read/write */
-  uint8_t val =  0x81;
+  /* Software reset */
+  uint8_t val = 0x00;
+  res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x10, &val, 1);
+
+  if (SYS_IS_ERROR_CODE(res))
+  {
+    SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    return res;
+  }
+  tx_thread_sleep(2); /* Add 1 tick to be sure to wait at least the required time */
+
+  val = 0x01;
   res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x12, &val, 1);
 
   if (SYS_IS_ERROR_CODE(res))
@@ -1537,16 +1541,10 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
     SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     return res;
   }
+  tx_thread_sleep(2); /* Add 1 tick to be sure to wait at least the required time */
 
-  while (1)
-  {
-    uint8_t ctrl;
-    ISensorReadReg(p_obj->ispu_sensor_ll, 0x12, &ctrl, 1);
-    if (!(ctrl & 1))
-    {
-      break;
-    }
-  }
+  val = 0x00;
+  res = ISensorWriteReg(p_obj->ispu_sensor_ll, 0x3, &val, 1);
 
   /* Set default values for FUNC_CFG_ACCESS register */
   val = 0x00;
@@ -1568,27 +1566,8 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
       /* ISPU code is not working */
     }
   }
-
-  /* Reset input configuration register for ISPU */
-  val = 0x00;
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x52, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x53, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x54, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x55, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x56, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x57, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x58, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x59, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5A, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5B, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5C, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5D, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5E, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x5F, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x60, &val, 1);
-  ISensorWriteReg(p_obj->ispu_sensor_ll, 0x61, &val, 1);
-
   tx_thread_sleep(10);
+
   /* Load the compressed UCF using the specified ISensorLL interface */
   UCFP_LoadCompressedUcf(&ucf_protocol, ucf_data, ucf_size);
 
@@ -1632,7 +1611,7 @@ uint8_t DatalogAppTask_load_iis3dwb10is_ucf_vtbl(const char *ucf_data, int32_t u
   SQInit(&q2, SMGetSensorManager());
   id = SQNextByNameAndType(&q2, "iis3dwb10is", COM_TYPE_ACC);
   sensor_status = SMSensorGetStatus(id);
-  iis3dwb10is_ext_acc_set_samples_per_ts((int32_t)sensor_status.type.mems.odr, NULL);
+  iis3dwb10is_acc_set_samples_per_ts((int32_t)sensor_status.type.mems.odr, NULL);
 
   SQInit(&q3, SMGetSensorManager());
   id = SQNextByNameAndType(&q3, "iis3dwb10is", COM_TYPE_ISPU);
@@ -1779,7 +1758,7 @@ uint8_t DatalogAppTask_load_ucf(const char *p_ucf_data, uint32_t ucf_size, const
   id = SQNextByNameAndType(&q1, "iis3dwb10is", COM_TYPE_ISPU);
   if (id != 0xFFFF)
   {
-    iis3dwb10is_ext_ispu_load_file(p_ucf_data, ucf_size, p_output_data, output_size);
+    iis3dwb10is_ispu_load_file(p_ucf_data, ucf_size, p_output_data, output_size);
   }
   else
   {

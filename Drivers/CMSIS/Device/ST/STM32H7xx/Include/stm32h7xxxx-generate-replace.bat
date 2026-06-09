@@ -14,7 +14,7 @@ if not exist "%scriptPATH%"  (
 
 cd %scriptPATH%
 
-perl DeviceGeneration.pl  --target STM32H7xx -replace
+python DeviceGeneration.py  --target STM32H7xx --replace
 
 pause
 :EOF

@@ -596,8 +596,7 @@ sys_error_code_t STHS34PF80Task_vtblDoEnterPowerMode(AManagedTask *_this, const 
           sths34pf80_func_status_get(p_sensor_drv, &tmos_func_status);
         }
       }
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -606,6 +605,8 @@ sys_error_code_t STHS34PF80Task_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         STHS34PF80TaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("STHS34PF80: -> STATE1\r\n"));

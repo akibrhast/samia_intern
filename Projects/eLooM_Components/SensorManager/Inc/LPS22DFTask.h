@@ -71,6 +71,12 @@ struct _LPS22DFTask
   const MX_GPIOParams_t *pCSConfig;
 
   /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
+
+  /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
   ABusIF *p_sensor_bus_if;
@@ -176,7 +182,7 @@ ISourceObservable *LPS22DFTaskGetPressSensorIF(LPS22DFTask *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag);
 
 /**
   * Call the default ::LPS22DfTaskAlloc and then it overwrite sensor name
@@ -189,7 +195,8 @@ AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name);
+AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                        const char *p_name);
 
 /**
   * Allocate an instance of ::LPS22DFTask in a memory block specified by the application.
@@ -211,7 +218,8 @@ AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSC
   * @return a pointer to the generic object ::AManagedTaskEx_t if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                       boolean_t i3c_flag);
 
 /**
   * Call the default ::LPS22DFTaskAlloc and then it overwrite sensor name
@@ -232,7 +240,7 @@ AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LPS22DFTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                              const char *p_name);
+                                              boolean_t i3c_flag, const char *p_name);
 
 /**
   * Get the Bus interface for the sensor task.

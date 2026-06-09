@@ -57,6 +57,10 @@
 #define LPS22HH_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LPS22HH_DYNAMIC_ADDR
+#define LPS22HH_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, report)                SYS_DEBUGF3(SYS_DBG_LPS22HH, level, report)
 
 #ifndef LPS22HH_TASK_CFG_I2C_ADDRESS
@@ -334,7 +338,7 @@ ISourceObservable *LPS22HHTaskGetPressSensorIF(LPS22HHTask *_this)
   return (ISourceObservable *) & (_this->press_sensor_if);
 }
 
-AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag)
 {
   LPS22HHTask *p_new_obj = SysAlloc(sizeof(LPS22HHTask));
 
@@ -351,6 +355,7 @@ AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->temp_sensor_status.p_name, sTheClass.temp_class_descriptor.p_name);
     strcpy(p_new_obj->press_sensor_status.p_name, sTheClass.press_class_descriptor.p_name);
@@ -359,9 +364,10 @@ AManagedTaskEx *LPS22HHTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name)
+AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                        const char *p_name)
 {
-  LPS22HHTask *p_new_obj = (LPS22HHTask *)LPS22HHTaskAlloc(pIRQConfig, pCSConfig);
+  LPS22HHTask *p_new_obj = (LPS22HHTask *)LPS22HHTaskAlloc(pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->temp_sensor_status.p_name, p_name);
@@ -370,7 +376,8 @@ AManagedTaskEx *LPS22HHTaskAllocSetName(const void *pIRQConfig, const void *pCSC
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                       boolean_t i3c_flag)
 {
   LPS22HHTask *p_obj = (LPS22HHTask *) p_mem_block;
 
@@ -387,15 +394,16 @@ AManagedTaskEx *LPS22HHTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *) p_obj;
 }
 
 AManagedTaskEx *LPS22HHTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                              const char *p_name)
+                                              boolean_t i3c_flag, const char *p_name)
 {
-  LPS22HHTask *p_obj = (LPS22HHTask *) LPS22HHTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig);
+  LPS22HHTask *p_obj = (LPS22HHTask *) LPS22HHTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->temp_sensor_status.p_name, p_name);
@@ -485,6 +493,15 @@ sys_error_code_t LPS22HHTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_func
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(LPS22HH_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LPS22HH_ID, (uint8_t)(LPS22HH_TASK_CFG_I2C_ADDRESS >> 1), LPS22HH_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -623,8 +640,7 @@ sys_error_code_t LPS22HHTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
         /* Deactivate the sensor */
         lps22hh_data_rate_set(p_sensor_drv, (lps22hh_odr_t)(LPS22HH_POWER_DOWN | 0x10));
       }
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_fifo_timer);
@@ -633,6 +649,8 @@ sys_error_code_t LPS22HHTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         LPS22HHTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LPS22HH: -> STATE1\r\n"));
@@ -1897,13 +1915,11 @@ static void LPS22HHTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

@@ -7,7 +7,7 @@
 **
 **  Abstract    : Linker script for STM32U585xI Device from STM32U5 series
 **                      2048Kbytes FLASH
-**                      768Kbytes RAM
+**                      784Kbytes RAM
 **
 **                Set heap size, stack size and stack location according
 **                to application requirements.
@@ -22,13 +22,12 @@
 *****************************************************************************
 ** @attention
 **
-** Copyright (c) 2022 STMicroelectronics.
+** Copyright (c) 2025 STMicroelectronics.
 ** All rights reserved.
 **
-** This software is licensed under terms that can be found in the LICENSE file in
-** the root directory of this software component.
+** This software is licensed under terms that can be found in the LICENSE file
+** in the root directory of this software component.
 ** If no LICENSE file comes with this software, it is provided AS-IS.
-**                             
 **
 *****************************************************************************
 */
@@ -46,6 +45,7 @@ _Min_Stack_Size = 0x800 ;	/* required amount of stack */
 MEMORY
 {
   RAM	(xrw)	: ORIGIN = 0x20000000,	LENGTH = 768K
+  SRAM4	(xrw)	: ORIGIN = 0x28000000,	LENGTH = 16K
   FLASH	(rx)	: ORIGIN = 0x08000000,	LENGTH = 2048K
 }
 
@@ -80,26 +80,25 @@ SECTIONS
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
   } >FLASH
 
-  .ARM.extab (READONLY) :
+  .ARM.extab (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     *(.ARM.extab* .gnu.linkonce.armextab.*)
   } >FLASH
-
-  .ARM (READONLY) :
+  .ARM (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
   } >FLASH
 
-  .preinit_array (READONLY) :
+  .preinit_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
   } >FLASH
 
-  .init_array (READONLY) :
+  .init_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
@@ -107,7 +106,7 @@ SECTIONS
     PROVIDE_HIDDEN (__init_array_end = .);
   } >FLASH
 
-  .fini_array (READONLY) :
+  .fini_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))

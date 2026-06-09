@@ -41,6 +41,8 @@
 #include "stm32g4xx.h"
 #elif defined(SYS_TP_MCU_STM32H7)
 #include "stm32h7xx.h"
+#elif defined(SYS_TP_MCU_STM32H5)
+#include "stm32h5xx.h"
 #else
 #error "no target platform defined in the project options."
 #endif
@@ -64,6 +66,8 @@
 #include "stm32g4xx_ll_tim.h"
 #elif defined(SYS_TP_MCU_STM32H7)
 #include "stm32h7xx_ll_tim.h"
+#elif defined(SYS_TP_MCU_STM32H5)
+#include "stm32h5xx_ll_tim.h"
 #else
 #error "no target platform defined in the project options."
 #endif

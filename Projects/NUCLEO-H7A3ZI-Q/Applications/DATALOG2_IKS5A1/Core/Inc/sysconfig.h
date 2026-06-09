@@ -31,7 +31,7 @@
 // *********************
 
 #define BOARD_ID                                  0x30
-#define FW_ID                                     0x0A
+#define FW_ID                                     0x07
 
 // Other hardware configuration
 // ****************************

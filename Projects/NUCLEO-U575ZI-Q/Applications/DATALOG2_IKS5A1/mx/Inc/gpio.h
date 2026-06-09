@@ -48,6 +48,7 @@ void MX_GPIO_PC3_Init(void);
 void MX_GPIO_PF14_Init(void);
 void MX_GPIO_PF15_Init(void);
 void MX_GPIO_PF13_Init(void);
+void MX_GPIO_PE9_Init(void);
 void MX_GPIO_PD14_Init(void);
 
 /* USER CODE END Prototypes */

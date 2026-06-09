@@ -32,6 +32,7 @@
 #include "services/SQuery.h"
 
 /* USER includes -------------------------------------------------------------*/
+#include "DatalogAppTask.h"
 
 /* USER private function prototypes ------------------------------------------*/
 
@@ -56,7 +57,13 @@ uint8_t iis2dulpx_mlc_comp_init(void)
   addSensorToAppModel(id, &iis2dulpx_mlc_model);
 
   iis2dulpx_mlc_set_sensor_annotation("[EXTERN]\0", NULL);
+#if (HSD_USE_DUMMY_DATA == 1)
+  iis2dulpx_mlc_model.stream_params.spts = 0;
+#else
+  iis2dulpx_mlc_model.stream_params.spts = 1;
+#endif
   __stream_control(true);
+  app_model.iis2dulpx_mlc_ucf_valid = false;
   /* USER Component initialization code */
   return PNPL_NO_ERROR_CODE;
 }
@@ -83,13 +90,13 @@ uint8_t iis2dulpx_mlc_get_samples_per_ts(int32_t *value)
 
 uint8_t iis2dulpx_mlc_get_ucf_status(bool *value)
 {
-  /* USER Code */
+  *value = app_model.iis2dulpx_mlc_ucf_valid;
   return PNPL_NO_ERROR_CODE;
 }
 
 uint8_t iis2dulpx_mlc_get_dim(int32_t *value)
 {
-  /* USER Code */
+  *value = 5;
   return PNPL_NO_ERROR_CODE;
 }
 
@@ -102,7 +109,7 @@ uint8_t iis2dulpx_mlc_get_ioffset(float_t *value)
 
 uint8_t iis2dulpx_mlc_get_data_type(char **value)
 {
-  /* USER Code */
+  *value = "int8";
   return PNPL_NO_ERROR_CODE;
 }
 
@@ -122,7 +129,7 @@ uint8_t iis2dulpx_mlc_get_sd_dps(int32_t *value)
 
 uint8_t iis2dulpx_mlc_get_sensor_annotation(char **value)
 {
-  /* USER Code */
+  *value = iis2dulpx_mlc_model.annotation;
   return PNPL_NO_ERROR_CODE;
 }
 
@@ -161,19 +168,29 @@ uint8_t iis2dulpx_mlc_set_enable(bool value, char **response_message)
     *response_message = "";
   }
   uint8_t ret = PNPL_NO_ERROR_CODE;
-  if (value)
+  if (app_model.iis2dulpx_mlc_ucf_valid == true)
   {
-    ret = SMSensorEnable(iis2dulpx_mlc_model.id);
+    if (value)
+    {
+      ret = SMSensorEnable(iis2dulpx_mlc_model.id);
+    }
+    else
+    {
+      ret = SMSensorDisable(iis2dulpx_mlc_model.id);
+    }
+    if (ret == SYS_NO_ERROR_CODE)
+    {
+      /* USER Code */
+      __stream_control(true);
+      /* USER Code */
+    }
   }
   else
   {
-    ret = SMSensorDisable(iis2dulpx_mlc_model.id);
-  }
-  if (ret == SYS_NO_ERROR_CODE)
-  {
-    /* USER Code */
-    __stream_control(true);
-    /* USER Code */
+    if (response_message != NULL)
+    {
+      *response_message = "Error: Failed to enable the sensor";
+    }
   }
   return ret;
 }
@@ -192,8 +209,9 @@ uint8_t iis2dulpx_mlc_set_sensor_annotation(const char *value, char **response_m
 
 uint8_t iis2dulpx_mlc_load_file(const char *data, int32_t size)
 {
-  /* USER Code */
+  DatalogAppTask_load_iis2dulpx_ucf_vtbl(data, size);
+  app_model.iis2dulpx_mlc_ucf_valid = true;
+  __stream_control(true);
   return PNPL_NO_ERROR_CODE;
 }
-
 

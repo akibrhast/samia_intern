@@ -44,7 +44,6 @@ typedef enum
   pnpl_ism330bx_gyro_odr_hz960 = 7,
   pnpl_ism330bx_gyro_odr_hz1920 = 8,
   pnpl_ism330bx_gyro_odr_hz3840 = 9,
-  pnpl_ism330bx_gyro_odr_hz7680 = 10,
 } pnpl_ism330bx_gyro_odr_t;
 typedef enum
 {

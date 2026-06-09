@@ -59,6 +59,10 @@
 #define IIS2DULPX_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef IIS2DULPX_DYNAMIC_ADDR
+#define IIS2DULPX_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                SYS_DEBUGF3(SYS_DBG_IIS2DULPX, level, message)
 
 #ifndef HSD_USE_DUMMY_DATA
@@ -369,7 +373,8 @@ ISensorLL_t *IIS2DULPXTaskGetSensorLLIF(IIS2DULPXTask *_this)
   return (ISensorLL_t *) & (_this->sensor_ll_if);
 }
 
-AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig)
+AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                   boolean_t i3c_flag)
 {
   IIS2DULPXTask *p_new_obj = SysAlloc(sizeof(IIS2DULPXTask));
 
@@ -388,6 +393,7 @@ AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfi
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->sensor_status.p_name, sTheClass.class_descriptor.p_name);
     strcpy(p_new_obj->mlc_sensor_status.p_name, sTheClass.mlc_class_descriptor.p_name);
@@ -397,9 +403,9 @@ AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfi
 }
 
 AManagedTaskEx *IIS2DULPXTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                          const char *p_name)
+                                          boolean_t i3c_flag, const char *p_name)
 {
-  IIS2DULPXTask *p_new_obj = (IIS2DULPXTask *) IIS2DULPXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig);
+  IIS2DULPXTask *p_new_obj = (IIS2DULPXTask *)IIS2DULPXTaskAlloc(pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->sensor_status.p_name, p_name);
@@ -409,7 +415,7 @@ AManagedTaskEx *IIS2DULPXTaskAllocSetName(const void *pIRQConfig, const void *pM
 }
 
 AManagedTaskEx *IIS2DULPXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                         const void *pCSConfig)
+                                         const void *pCSConfig, boolean_t i3c_flag)
 {
   IIS2DULPXTask *p_obj = (IIS2DULPXTask *)p_mem_block;
 
@@ -428,15 +434,16 @@ AManagedTaskEx *IIS2DULPXTaskStaticAlloc(void *p_mem_block, const void *pIRQConf
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pMLCConfig = (MX_GPIOParams_t *) pMLCConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *)p_obj;
 }
 
 AManagedTaskEx *IIS2DULPXTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                const void *pCSConfig, const char *p_name)
+                                                const void *pCSConfig, boolean_t i3c_flag, const char *p_name)
 {
-  IIS2DULPXTask *p_obj = (IIS2DULPXTask *) IIS2DULPXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig);
+  IIS2DULPXTask *p_obj = (IIS2DULPXTask *) IIS2DULPXTaskStaticAlloc(p_mem_block, pIRQConfig, pMLCConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->sensor_status.p_name, p_name);
@@ -539,6 +546,23 @@ sys_error_code_t IIS2DULPXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fu
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
     }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(iis2dulpx_priv_t));
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(IIS2DULPX_ID, (uint8_t)(IIS2DULPX_I2C_ADD_H >> 1), IIS2DULPX_DYNAMIC_ADDR, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(iis2dulpx_priv_t));
+    }
   }
   else
   {
@@ -547,6 +571,10 @@ sys_error_code_t IIS2DULPXTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_fu
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
       SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+    else
+    {
+      p_obj->p_sensor_bus_if->m_xConnector.priv_data = SysAlloc(sizeof(iis2dulpx_priv_t));
     }
   }
 
@@ -693,8 +721,7 @@ sys_error_code_t IIS2DULPXTask_vtblDoEnterPowerMode(AManagedTask *_this, const E
       }
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -711,6 +738,8 @@ sys_error_code_t IIS2DULPXTask_vtblDoEnterPowerMode(AManagedTask *_this, const E
       {
         IIS2DULPXTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS2DULPX: -> STATE1\r\n"));
@@ -988,8 +1017,20 @@ sys_error_code_t IIS2DULPXTask_vtblSensorSetODR(ISensorMems_t *_this, float_t od
       /* ODR = 0 sends only message to switch off the sensor.
        * Do not update the model in case of odr = 0 */
 
-      p_if_owner->sensor_status.type.mems.odr = odr;
-      p_if_owner->sensor_status.type.mems.measured_odr = 0.0f;
+      if (sensor_id == p_if_owner->acc_id)
+      {
+        p_if_owner->sensor_status.type.mems.odr = odr;
+        p_if_owner->sensor_status.type.mems.measured_odr = 0.0f;
+      }
+      else if (sensor_id == p_if_owner->mlc_id)
+      {
+        p_if_owner->mlc_sensor_status.type.mems.odr = odr;
+        p_if_owner->mlc_sensor_status.type.mems.measured_odr = 0.0f;
+      }
+      else
+      {
+        /**/
+      }
     }
     /* Set a new command message in the queue */
     SMMessage report =
@@ -1019,8 +1060,19 @@ sys_error_code_t IIS2DULPXTask_vtblSensorSetFS(ISensorMems_t *_this, float_t fs)
   }
   else
   {
-    p_if_owner->sensor_status.type.mems.fs = fs;
-    p_if_owner->sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->sensor_status.type.mems.fs;
+    if (sensor_id == p_if_owner->acc_id)
+    {
+      p_if_owner->sensor_status.type.mems.fs = fs;
+      p_if_owner->sensor_status.type.mems.sensitivity = 0.0000305f * p_if_owner->sensor_status.type.mems.fs;
+    }
+    else if (sensor_id == p_if_owner->mlc_id)
+    {
+      p_if_owner->mlc_sensor_status.type.mems.fs = fs;
+    }
+    else
+    {
+      /**/
+    }
     /* Set a new command message in the queue */
     SMMessage report =
     {
@@ -1602,10 +1654,18 @@ static sys_error_code_t IIS2DULPXTaskSensorInit(IIS2DULPXTask *_this)
   iis2dulpx_md_t mode;
   iis2dulpx_status_t status;
   /* FIFO INT setup */
-  iis2dulpx_pin_int_route_t int1_route = {0};
-  iis2dulpx_pin_int_route_t int2_route = {0};
+  iis2dulpx_pin_int1_route_t int1_route = {0};
+  iis2dulpx_pin_int2_route_t int2_route = {0};
 
-  /*add 10ms delay?*/
+  if (_this->i3c_flag)
+  {
+    iis2dulpx_i3c_cfg_t i3c_cfg;
+    iis2dulpx_i3c_configure_get(p_sensor_drv, &i3c_cfg);
+    i3c_cfg.asf_on = PROPERTY_ENABLE;
+    iis2dulpx_i3c_configure_set(p_sensor_drv, &i3c_cfg);
+  }
+
+  /* Exit deep power down */
   iis2dulpx_exit_deep_power_down(p_sensor_drv);
   ret_val = iis2dulpx_device_id_get(p_sensor_drv, &reg0);
   if (ret_val == 0)
@@ -1614,12 +1674,74 @@ static sys_error_code_t IIS2DULPXTaskSensorInit(IIS2DULPXTask *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS2DULPX: sensor - I am 0x%x.\r\n", reg0));
 
-  /* Restore default configuration */
-  iis2dulpx_init_set(p_sensor_drv, IIS2DULPX_RESET);
+  /* Wait for the reset to complete */
   do
   {
     iis2dulpx_status_get(p_sensor_drv, &status);
   } while (status.sw_reset);
+
+  iis2dulpx_mode_get(p_sensor_drv, &mode);
+  /* Full scale selection. */
+  if (_this->sensor_status.type.mems.fs < 3.0f)
+  {
+    mode.fs = IIS2DULPX_2g;
+  }
+  else if (_this->sensor_status.type.mems.fs < 5.0f)
+  {
+    mode.fs = IIS2DULPX_4g;
+  }
+  else if (_this->sensor_status.type.mems.fs < 9.0f)
+  {
+    mode.fs = IIS2DULPX_8g;
+  }
+  else
+  {
+    mode.fs = IIS2DULPX_16g;
+  }
+  /* Output data rate selection. */
+  if (_this->sensor_status.type.mems.odr < 7.0f)
+  {
+    mode.odr = IIS2DULPX_6Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 13.0f)
+  {
+    mode.odr = IIS2DULPX_12Hz5_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 26.0f)
+  {
+    mode.odr = IIS2DULPX_25Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 51.0f)
+  {
+    mode.odr = IIS2DULPX_50Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 101.0f)
+  {
+    mode.odr = IIS2DULPX_100Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 201.0f)
+  {
+    mode.odr = IIS2DULPX_200Hz_HP;
+  }
+  else if (_this->sensor_status.type.mems.odr < 401.0f)
+  {
+    mode.odr = IIS2DULPX_400Hz_HP;
+  }
+  else
+  {
+    mode.odr = IIS2DULPX_800Hz_HP;
+  }
+
+  if (_this->sensor_status.is_active)
+  {
+    iis2dulpx_mode_set(p_sensor_drv, &mode);
+  }
+  else
+  {
+    mode.odr = IIS2DULPX_OFF;
+    iis2dulpx_mode_set(p_sensor_drv, &mode);
+    _this->sensor_status.is_active = false;
+  }
 
 #if IIS2DULPX_FIFO_ENABLED
 
@@ -1638,13 +1760,15 @@ static sys_error_code_t IIS2DULPXTaskSensorInit(IIS2DULPXTask *_this)
   }
 
   iis2dulpx_fifo_mode_t fifo_mode;
+  iis2dulpx_fifo_batch_t fifo_batch;
   fifo_mode.store = IIS2DULPX_FIFO_1X;
   fifo_mode.xl_only = 1;
-  fifo_mode.watermark = _this->samples_per_it;
   fifo_mode.operation = IIS2DULPX_STREAM_MODE;
-  fifo_mode.batch.dec_ts = IIS2DULPX_DEC_TS_OFF;
-  fifo_mode.batch.bdr_xl = IIS2DULPX_BDR_XL_ODR;
+  fifo_batch.dec_ts = IIS2DULPX_DEC_TS_OFF;
+  fifo_batch.bdr_xl = IIS2DULPX_BDR_XL_ODR;
   iis2dulpx_fifo_mode_set(p_sensor_drv, fifo_mode);
+  iis2dulpx_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
+  iis2dulpx_fifo_batch_set(p_sensor_drv, fifo_batch);
 
   /* FIFO_WTM_IA routing on pin INT1 */
   iis2dulpx_pin_int1_route_get(p_sensor_drv, &int1_route);
@@ -1696,7 +1820,6 @@ static sys_error_code_t IIS2DULPXTaskSensorInit(IIS2DULPXTask *_this)
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -1711,69 +1834,6 @@ static sys_error_code_t IIS2DULPXTaskSensorInit(IIS2DULPXTask *_this)
 #else
     _this->iis2dulpx_task_cfg_timer_period_ms = (uint16_t)(1000.0f / _this->sensor_status.type.mems.odr);
 #endif
-  }
-
-  iis2dulpx_mode_get(p_sensor_drv, &mode);
-  /* Full scale selection. */
-  if (_this->sensor_status.type.mems.fs < 3.0f)
-  {
-    mode.fs = IIS2DULPX_2g;
-  }
-  else if (_this->sensor_status.type.mems.fs < 5.0f)
-  {
-    mode.fs = IIS2DULPX_4g;
-  }
-  else if (_this->sensor_status.type.mems.fs < 9.0f)
-  {
-    mode.fs = IIS2DULPX_8g;
-  }
-  else
-  {
-    mode.fs = IIS2DULPX_16g;
-  }
-
-  if (_this->sensor_status.type.mems.odr < 7.0f)
-  {
-    mode.odr = IIS2DULPX_6Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 13.0f)
-  {
-    mode.odr = IIS2DULPX_12Hz5_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 26.0f)
-  {
-    mode.odr = IIS2DULPX_25Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 51.0f)
-  {
-    mode.odr = IIS2DULPX_50Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 101.0f)
-  {
-    mode.odr = IIS2DULPX_100Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 201.0f)
-  {
-    mode.odr = IIS2DULPX_200Hz_HP;
-  }
-  else if (_this->sensor_status.type.mems.odr < 401.0f)
-  {
-    mode.odr = IIS2DULPX_400Hz_HP;
-  }
-  else
-  {
-    mode.odr = IIS2DULPX_800Hz_HP;
-  }
-
-  if (_this->sensor_status.is_active)
-  {
-    iis2dulpx_mode_set(p_sensor_drv, &mode);
-  }
-  else
-  {
-    mode.odr = IIS2DULPX_OFF;
-    iis2dulpx_mode_set(p_sensor_drv, &mode);
-    _this->sensor_status.is_active = false;
   }
   _this->odr_count = 0;
   _this->delta_timestamp_sum = 0.0f;
@@ -2049,12 +2109,8 @@ static sys_error_code_t IIS2DULPXTaskSensorSetFifoWM(IIS2DULPXTask *_this, SMMes
       iis2dulpx_wtm_level = IIS2DULPX_MAX_WTM_LEVEL;
     }
     _this->samples_per_it = iis2dulpx_wtm_level;
-
-    iis2dulpx_fifo_mode_t fifo_mode;
-    iis2dulpx_fifo_mode_get(p_sensor_drv, &fifo_mode);
     /* Set FIFO watermark */
-    fifo_mode.watermark = _this->samples_per_it;
-    iis2dulpx_fifo_mode_set(p_sensor_drv, fifo_mode);
+    iis2dulpx_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
   }
   else
   {
@@ -2239,13 +2295,11 @@ static void IIS2DULPXTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void IIS2DULPXTaskMLCTimerCallbackFunction(ULONG param)
@@ -2255,13 +2309,11 @@ static void IIS2DULPXTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

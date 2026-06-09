@@ -151,6 +151,11 @@ extern const MX_GPIOParams_t MX_GPIO_ISM6HG256X_INT1InitParams;
 extern const MX_GPIOParams_t MX_GPIO_ISM330IS_INT2InitParams;
 
 /**
+  * DIL_INT1 GPIO configuration parameters.
+  */
+extern const MX_GPIOParams_t MX_GPIO_INT1_EXTERNALInitParams;
+
+/**
   * SPI CS GPIO configuration parameters.
   * This is used to configure the CS pin of the external SPI device.
   */

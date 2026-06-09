@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>DATALOG2-NUCLEO-U575ZI-Q</name>
+	<name>DATALOG2_IKS5A1-NUCLEO-U575ZI-Q</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -1149,6 +1149,11 @@
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I2CBusTask.c</locationURI>
 		</link>
 		<link>
+			<name>eLooM_Components/SensorManager/Src/I3CBusIF.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/I3CBusIF.c</locationURI>
+		</link>
+		<link>
 			<name>eLooM_Components/SensorManager/Src/IIS2DULPXTask.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/eLooM_Components/SensorManager/Src/IIS2DULPXTask.c</locationURI>
@@ -1439,14 +1444,14 @@
 			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Inc/App_model_Iis2mdc_Mag.h</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ext_Acc.h</name>
+			<name>User/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Acc.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ext_Acc.h</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Acc.h</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ext_Ispu.h</name>
+			<name>User/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ispu.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ext_Ispu.h</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Inc/App_model_Iis3dwb10is_Ispu.h</locationURI>
 		</link>
 		<link>
 			<name>User/PnPL/AppModel/Inc/App_model_Ilps22qs_Press.h</name>
@@ -1539,14 +1544,14 @@
 			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Src/App_model_Iis2mdc_Mag.c</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ext_Acc.c</name>
+			<name>User/PnPL/AppModel/Src/App_model_Iis3dwb10is_Acc.c</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ext_Acc.c</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Src/App_model_Iis3dwb10is_Acc.c</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ext_Ispu.c</name>
+			<name>User/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ispu.c</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ext_Ispu.c</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/AppModel/Src/App_model_Iis3dwb10is_Ispu.c</locationURI>
 		</link>
 		<link>
 			<name>User/PnPL/AppModel/Src/App_model_Ilps22qs_Press.c</name>
@@ -1634,14 +1639,14 @@
 			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Inc/Iis2mdc_Mag_PnPL.h</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/Components/Inc/Iis3dwb10is_Ext_Acc_PnPL.h</name>
+			<name>User/PnPL/Components/Inc/Iis3dwb10is_Acc_PnPL.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Inc/Iis3dwb10is_Ext_Acc_PnPL.h</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Inc/Iis3dwb10is_Acc_PnPL.h</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/Components/Inc/Iis3dwb10is_Ext_Ispu_PnPL.h</name>
+			<name>User/PnPL/Components/Inc/Iis3dwb10is_Ispu_PnPL.h</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Inc/Iis3dwb10is_Ext_Ispu_PnPL.h</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Inc/Iis3dwb10is_Ispu_PnPL.h</locationURI>
 		</link>
 		<link>
 			<name>User/PnPL/Components/Inc/Ilps22qs_Press_PnPL.h</name>
@@ -1729,14 +1734,14 @@
 			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Src/Iis2mdc_Mag_PnPL.c</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/Components/Src/Iis3dwb10is_Ext_Acc_PnPL.c</name>
+			<name>User/PnPL/Components/Src/Iis3dwb10is_Acc_PnPL.c</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Src/Iis3dwb10is_Ext_Acc_PnPL.c</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Src/Iis3dwb10is_Acc_PnPL.c</locationURI>
 		</link>
 		<link>
-			<name>User/PnPL/Components/Src/Iis3dwb10is_Ext_Ispu_PnPL.c</name>
+			<name>User/PnPL/Components/Src/Iis3dwb10is_Ispu_PnPL.c</name>
 			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Src/Iis3dwb10is_Ext_Ispu_PnPL.c</locationURI>
+			<locationURI>PARENT-1-PROJECT_LOC/PnPL/Components/Src/Iis3dwb10is_Ispu_PnPL.c</locationURI>
 		</link>
 		<link>
 			<name>User/PnPL/Components/Src/Ilps22qs_Press_PnPL.c</name>

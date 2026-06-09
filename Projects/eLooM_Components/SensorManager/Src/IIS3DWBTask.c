@@ -545,8 +545,7 @@ sys_error_code_t IIS3DWBTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
         iis3dwb_fifo_mode_set(p_sensor_drv, IIS3DWB_BYPASS_MODE);
       }
       p_obj->first_data_ready = 0;
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -555,6 +554,8 @@ sys_error_code_t IIS3DWBTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         IIS3DWBTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS3DWB: -> STATE1\r\n"));
@@ -1211,7 +1212,7 @@ static sys_error_code_t IIS3DWBTaskSensorInit(IIS3DWBTask *_this)
   }
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("IIS3DWB: sensor - I am 0x%x.\r\n", reg0));
 
-  //TODO: STF - what is this?
+  /*Enable Filter*/
   iis3dwb_read_reg(p_sensor_drv, IIS3DWB_CTRL1_XL, (uint8_t *) &reg0, 1);
   reg0 |= 0xA0;
   iis3dwb_write_reg(p_sensor_drv, IIS3DWB_CTRL1_XL, (uint8_t *) &reg0, 1);
@@ -1604,13 +1605,11 @@ static void IIS3DWBTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

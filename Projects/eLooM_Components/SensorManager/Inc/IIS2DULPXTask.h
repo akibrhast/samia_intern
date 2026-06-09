@@ -75,6 +75,11 @@ struct _IIS2DULPXTask
   const MX_GPIOParams_t *pCSConfig;
 
   /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
+  /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
   ABusIF *p_sensor_bus_if;
@@ -248,7 +253,8 @@ ISensorLL_t *IIS2DULPXTaskGetSensorLLIF(IIS2DULPXTask *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig);
+AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                   boolean_t i3c_flag);
 
 /**
   * Call the default ::IIS2DULPXTaskAlloc and then it overwrite sensor name
@@ -264,7 +270,7 @@ AManagedTaskEx *IIS2DULPXTaskAlloc(const void *pIRQConfig, const void *pMLCConfi
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *IIS2DULPXTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                          const char *p_name);
+                                          boolean_t i3c_flag, const char *p_name);
 
 /**
   * Allocate an instance of ::IIS2DULPXTask in a memory block specified by the application.
@@ -289,7 +295,7 @@ AManagedTaskEx *IIS2DULPXTaskAllocSetName(const void *pIRQConfig, const void *pM
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *IIS2DULPXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                         const void *pCSConfig);
+                                         const void *pCSConfig, boolean_t i3c_flag);
 
 /**
   * Call the default ::IIS2DULPXTaskAlloc and then it overwrite sensor name
@@ -312,7 +318,7 @@ AManagedTaskEx *IIS2DULPXTaskStaticAlloc(void *p_mem_block, const void *pIRQConf
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *IIS2DULPXTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                const void *pCSConfig,
+                                                const void *pCSConfig, boolean_t i3c_flag,
                                                 const char *p_name);
 
 /**

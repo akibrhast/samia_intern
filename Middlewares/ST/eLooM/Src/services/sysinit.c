@@ -322,8 +322,6 @@ sys_error_code_t SysTaskErrorHandler(AManagedTask *pxTask)
   assert_param(pxTask != NULL);
   sys_error_code_t xRes = SYS_NO_ERROR_CODE;
 
-  /* TODO: STF - how to handle the shutdown of the task?*/
-
   (void)tx_thread_suspend(&pxTask->m_xTaskHandle);
 
   return xRes;
@@ -462,7 +460,7 @@ static void InitTaskRun(ULONG thread_input)
     __NOP();
     SYS_DEBUGF(SYS_DBG_LEVEL_WARNING, ("INIT: start after WWDG reset!\r\n"));
   }
-#ifndef SYS_TP_MCU_STM32H7
+#if !defined(SYS_TP_MCU_STM32H7) && !defined(SYS_TP_MCU_STM32H5)
   /* Check if the system has resumed from the Option Byte loading occurred*/
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_OBLRST) != RESET)
   {
@@ -474,7 +472,11 @@ static void InitTaskRun(ULONG thread_input)
 #endif
 
   /* check the reset flags*/
+#if defined(SYS_TP_MCU_STM32H7) || defined(SYS_TP_MCU_STM32H5)
+  SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("INIT: reset flags: 0x%x\r\n", READ_BIT(RCC->RSR, 0xFF000000U)));
+#else
   SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("INIT: reset flags: 0x%x\r\n", READ_BIT(RCC->CSR, 0xFF000000U)));
+#endif
 
   /* Clear reset flags in any case*/
   __HAL_RCC_CLEAR_RESET_FLAGS();

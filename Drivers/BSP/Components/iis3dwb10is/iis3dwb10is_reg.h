@@ -7,13 +7,12 @@
  ******************************************************************************
  * @attention
  *
- * <h2><center>&copy; Copyright (c) 2024 STMicroelectronics.
- * All rights reserved.</center></h2>
+ * Copyright (c) 2025 STMicroelectronics.
+ * All rights reserved.
  *
- * This software component is licensed by ST under BSD 3-Clause license,
- * the "License"; You may not use this file except in compliance with the
- * License. You may obtain a copy of the License at:
- *                        opensource.org/licenses/BSD-3-Clause
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
  *
  ******************************************************************************
  */
@@ -285,11 +284,11 @@ typedef struct
   uint8_t xl_batch                     : 1;
   uint8_t t_batch                      : 1;
   uint8_t ispu_batch                   : 1;
-  uint8_t qvar_batch                   : 1;
+  uint8_t not_used0                    : 1;
   uint8_t stop_on_wtm                  : 1;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
   uint8_t stop_on_wtm                  : 1;
-  uint8_t qvar_batch                   : 1;
+  uint8_t not_used0                    : 1;
   uint8_t ispu_batch                   : 1;
   uint8_t t_batch                      : 1;
   uint8_t xl_batch                     : 1;
@@ -297,29 +296,29 @@ typedef struct
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_fifo_ctrl3_t;
 
-#define IIS3DWB10IS_COUNTER_ODR_H                0x08U
+#define IIS3DWB10IS_COUNTER_BDR_H                0x08U
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t counter_odr              : 4;
-  uint8_t rst_counter_odr_rd_diff  : 1;
-  uint8_t trigger_counter_odr      : 1;
+  uint8_t cnt_bdr_th               : 4;
+  uint8_t rst_counter_bdr_rd_diff  : 1;
+  uint8_t trigger_counter_bdr      : 1;
   uint8_t no_used                  : 1;
-  uint8_t rst_counter_odr          : 1;
+  uint8_t rst_counter_bdr          : 1;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t rst_counter_odr          : 1;
+  uint8_t rst_counter_bdr          : 1;
   uint8_t no_used                  : 1;
-  uint8_t trigger_counter_odr      : 1;
-  uint8_t rst_counter_odr_rd_diff  : 1;
-  uint8_t counter_odr              : 4;
+  uint8_t trigger_counter_bdr      : 1;
+  uint8_t rst_counter_bdr_rd_diff  : 1;
+  uint8_t cnt_bdr_th               : 4;
 #endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_counter_odr_h_t;
+} iis3dwb10is_counter_bdr_h_t;
 
-#define IIS3DWB10IS_COUNTER_ODR_L                0x09U
+#define IIS3DWB10IS_COUNTER_BDR_L                0x09U
 typedef struct
 {
-  uint8_t counter_odr              : 8;
-} iis3dwb10is_counter_odr_l_t;
+  uint8_t cnt_bdr_th               : 8;
+} iis3dwb10is_counter_bdr_l_t;
 
 #define IIS3DWB10IS_PLL_CTRL_1                   0x0AU
 typedef struct
@@ -347,7 +346,7 @@ typedef struct
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_pll_ctrl_2_t;
 
-#define IIS3DWB10IS_INT_CTRL0                    0x0CU
+#define IIS3DWB10IS_INT_CTRL1                    0x0CU
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
@@ -366,56 +365,56 @@ typedef struct
   uint8_t not_used0                    : 2;
   uint8_t int1_drdy_temp               : 1;
   uint8_t int2_drdy_temp               : 1;
-#endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_int_ctrl0_t;
-
-#define IIS3DWB10IS_INT_CTRL1                    0x0DU
-typedef struct
-{
-#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t int1_drdy_xl                 : 1;
-  uint8_t int1_drdy_qvar               : 1;
-  uint8_t int1_sleepcnt                : 1;
-  uint8_t int1_ext_trig                : 1;
-  uint8_t int1_fifo_th                 : 1;
-  uint8_t int1_fifo_ovr                : 1;
-  uint8_t int1_fifo_full               : 1;
-  uint8_t not_used0                    : 1;
-#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t not_used0                    : 1;
-  uint8_t int1_fifo_full               : 1;
-  uint8_t int1_fifo_ovr                : 1;
-  uint8_t int1_fifo_th                 : 1;
-  uint8_t int1_ext_trig                : 1;
-  uint8_t int1_sleepcnt                : 1;
-  uint8_t int1_drdy_qvar               : 1;
-  uint8_t int1_drdy_xl                 : 1;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_int_ctrl1_t;
 
-#define IIS3DWB10IS_INT_CTRL2                    0x0EU
+#define IIS3DWB10IS_INT_CTRL2                    0x0DU
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t int1_drdy_xl                 : 1;
+  uint8_t not_used0                    : 1;
+  uint8_t int1_sleepcnt                : 1;
+  uint8_t int1_ext_trig                : 1;
+  uint8_t int1_fifo_th                 : 1;
+  uint8_t int1_fifo_ovr                : 1;
+  uint8_t int1_fifo_full               : 1;
+  uint8_t int1_counter_bdr             : 1;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t int1_counter_bdr             : 1;
+  uint8_t int1_fifo_full               : 1;
+  uint8_t int1_fifo_ovr                : 1;
+  uint8_t int1_fifo_th                 : 1;
+  uint8_t int1_ext_trig                : 1;
+  uint8_t int1_sleepcnt                : 1;
+  uint8_t not_used0                    : 1;
+  uint8_t int1_drdy_xl                 : 1;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_int_ctrl2_t;
+
+#define IIS3DWB10IS_INT_CTRL3                    0x0EU
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t int2_drdy_xl                 : 1;
-  uint8_t int2_drdy_qvar               : 1;
+  uint8_t not_used1                    : 1;
   uint8_t int2_sleepcnt                : 1;
   uint8_t not_used0                    : 1;
   uint8_t int2_fifo_th                 : 1;
   uint8_t int2_fifo_ovr                : 1;
   uint8_t int2_fifo_full               : 1;
-  uint8_t not_used1                    : 1;
+  uint8_t int2_counter_bdr             : 1;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t not_used1                    : 1;
+  uint8_t int2_counter_bdr             : 1;
   uint8_t int2_fifo_full               : 1;
   uint8_t int2_fifo_ovr                : 1;
   uint8_t int2_fifo_th                 : 1;
   uint8_t not_used0                    : 1;
   uint8_t int2_sleepcnt                : 1;
-  uint8_t int2_drdy_qvar               : 1;
+  uint8_t not_used1                    : 1;
   uint8_t int2_drdy_xl                 : 1;
 #endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_int_ctrl2_t;
+} iis3dwb10is_int_ctrl3_t;
 
 #define IIS3DWB10IS_WHO_AM_I                     0x0FU
 
@@ -436,11 +435,11 @@ typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t not_used0                    : 5;
-  uint8_t fs                           : 2;
+  uint8_t fs_xl                        : 2;
   uint8_t not_used1                    : 1;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
   uint8_t not_used1                    : 1;
-  uint8_t fs                           : 2;
+  uint8_t fs_xl                        : 2;
   uint8_t not_used0                    : 5;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_ctrl2_t;
@@ -475,17 +474,17 @@ typedef struct
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t int2_in_lh                   : 1;
   uint8_t not_used0                    : 1;
-  uint8_t x_axis_enable_us             : 1;
-  uint8_t y_axis_enable_us             : 1;
-  uint8_t z_axis_enable_us             : 1;
-  uint8_t qvar_en                      : 1;
+  uint8_t x_axis_enable                : 1;
+  uint8_t y_axis_enable                : 1;
+  uint8_t z_axis_enable                : 1;
+  uint8_t not_used1                    : 1;
   uint8_t rounding                     : 2;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
   uint8_t rounding                     : 2;
-  uint8_t qvar_en                      : 1;
-  uint8_t z_axis_enable_us             : 1;
-  uint8_t y_axis_enable_us             : 1;
-  uint8_t x_axis_enable_us             : 1;
+  uint8_t not_used1                    : 1;
+  uint8_t z_axis_enable                : 1;
+  uint8_t y_axis_enable                : 1;
+  uint8_t x_axis_enable                : 1;
   uint8_t not_used0                    : 1;
   uint8_t int2_in_lh                   : 1;
 #endif /* DRV_BYTE_ORDER */
@@ -496,11 +495,11 @@ typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t int_en_i3c                   : 1;
-  uint8_t bus_act_sel                  : 1;
-  uint8_t not_used0                    : 6;
+  uint8_t bus_act_sel                  : 2;
+  uint8_t not_used0                    : 5;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t not_used0                    : 6;
-  uint8_t bus_act_sel                  : 1;
+  uint8_t not_used0                    : 5;
+  uint8_t bus_act_sel                  : 2;
   uint8_t int_en_i3c                   : 1;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_i3c_ctrl_t;
@@ -516,28 +515,6 @@ typedef struct
   uint8_t sim                          : 1;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_spi_ctrl_t;
-
-#define IIS3DWB10IS_QVAR_CTRL                    0x16U
-typedef struct
-{
-#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t qvar_c_zin                   : 2;
-  uint8_t not_used0                    : 1;
-  uint8_t qvar_switch                  : 1;
-  uint8_t qvar2_en                     : 1;
-  uint8_t qvar1_en                     : 1;
-  uint8_t qvar_hpf                     : 1;
-  uint8_t qvar_lpf                     : 1;
-#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t qvar_lpf                     : 1;
-  uint8_t qvar_hpf                     : 1;
-  uint8_t qvar1_en                     : 1;
-  uint8_t qvar2_en                     : 1;
-  uint8_t qvar_switch                  : 1;
-  uint8_t not_used0                    : 1;
-  uint8_t qvar_c_zin                   : 2;
-#endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_qvar_ctrl_t;
 
 #define IIS3DWB10IS_ST_CTRL                      0x17U
 typedef struct
@@ -555,7 +532,7 @@ typedef struct
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_st_ctrl_t;
 
-#define IIS3DWB10IS_ISPU_CTRL0                   0x18U
+#define IIS3DWB10IS_ISPU_CTRL1                   0x18U
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
@@ -570,51 +547,51 @@ typedef struct
   uint8_t loprio_user_trig             : 1;
   uint8_t not_used0                    : 1;
   uint8_t ispu_bdu                     : 1;
-#endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_ispu_ctrl0_t;
-
-#define IIS3DWB10IS_ISPU_CTRL1                   0x19U
-typedef struct
-{
-#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t not_used0                    : 4;
-  uint8_t sw_reset_ispu                : 1;
-  uint8_t timestamp_en                 : 1;
-  uint8_t not_used1                    : 2;
-#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t not_used1                    : 2;
-  uint8_t timestamp_en                 : 1;
-  uint8_t sw_reset_ispu                : 1;
-  uint8_t not_used0                    : 4;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_ispu_ctrl1_t;
 
-#define IIS3DWB10IS_STATUS_A_SL                  0x1AU
+#define IIS3DWB10IS_ISPU_CTRL2                   0x19U
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t int_status_a_sl              : 8;
+  uint8_t not_used0                    : 4;
+  uint8_t sw_reset_ispu                : 1;
+  uint8_t timestamp_en                 : 1;
+  uint8_t not_used1                    : 2;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t int_status_a_sl              : 8;
+  uint8_t not_used1                    : 2;
+  uint8_t timestamp_en                 : 1;
+  uint8_t sw_reset_ispu                : 1;
+  uint8_t not_used0                    : 4;
 #endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_int_status_a_sl_t;
+} iis3dwb10is_ispu_ctrl2_t;
 
-#define IIS3DWB10IS_STATUS_B_SL                  0x1BU
+#define IIS3DWB10IS_ISPU_INT_STATUS1_MAINPAGE    0x1AU
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t int_status_b_sl              : 8;
+  uint8_t ispu_ia                      : 8;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
-  uint8_t int_status_b_sl              : 8;
+  uint8_t ispu_ia                      : 8;
 #endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_int_status_b_sl_t;
+} iis3dwb10is_ispu_int_status1_mainpage_t;
+
+#define IIS3DWB10IS_ISPU_INT_STATUS2_MAINPAGE    0x1BU
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t ispu_ia                      : 8;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t ispu_ia                      : 8;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_ispu_int_status2_mainpage_t;
 
 #define IIS3DWB10IS_STATUS_REG                   0x1EU
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t xlda                         : 1;
-  uint8_t qvarda                       : 1;
+  uint8_t not_used1                    : 1;
   uint8_t tda                          : 1;
   uint8_t sleepcnt_ia                  : 1;
   uint8_t ext_trig_ia                  : 1;
@@ -628,10 +605,22 @@ typedef struct
   uint8_t ext_trig_ia                  : 1;
   uint8_t sleepcnt_ia                  : 1;
   uint8_t tda                          : 1;
-  uint8_t qvarda                       : 1;
+  uint8_t not_used1                    : 1;
   uint8_t xlda                         : 1;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_status_reg_t;
+
+#define IIS3DWB10IS_TPF                          0x20U
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t tpf                          : 4;
+  uint8_t not_used0                    : 4;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t not_used0                    : 4;
+  uint8_t tpf                          : 4;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_tpf_t;
 
 #define IIS3DWB10IS_DEVICE_STATUS                0x21U
 typedef struct
@@ -666,8 +655,6 @@ typedef struct
 #define IIS3DWB10IS_TIMESTAMP2                   0x32U
 #define IIS3DWB10IS_TIMESTAMP3                   0x33U
 #define IIS3DWB10IS_TIMESTAMP4                   0x34U
-#define IIS3DWB10IS_OUT_QVAR_L                   0x36U
-#define IIS3DWB10IS_OUT_QVAR_H                   0x37U
 
 #define IIS3DWB10IS_SLEEPCNT_CFG                 0x38U
 typedef struct
@@ -675,13 +662,13 @@ typedef struct
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t tick_sel                     : 1;
   uint8_t enable_sleepcnt              : 1;
-  uint8_t pl_sleepcnt                  : 1;
+  uint8_t not_used1                    : 1;
   uint8_t rst_sleepcnt                 : 1;
   uint8_t not_used0                    : 4;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
   uint8_t not_used0                    : 4;
   uint8_t rst_sleepcnt                 : 1;
-  uint8_t pl_sleepcnt                  : 1;
+  uint8_t not_used1                    : 1;
   uint8_t enable_sleepcnt              : 1;
   uint8_t tick_sel                     : 1;
 #endif /* DRV_BYTE_ORDER */
@@ -693,7 +680,7 @@ typedef struct
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t loprio_fifo_en               : 1;
   uint8_t loprio_sleepcnt_en           : 1;
-  uint8_t loprio_qvar_en               : 1;
+  uint8_t not_used1                    : 1;
   uint8_t loprio_ext_trg_en            : 1;
   uint8_t loprio_user_trg_en           : 1;
   uint8_t loprio_temp_en               : 1;
@@ -703,14 +690,12 @@ typedef struct
   uint8_t loprio_temp_en               : 1;
   uint8_t loprio_user_trg_en           : 1;
   uint8_t loprio_ext_trg_en            : 1;
-  uint8_t loprio_qvar_en               : 1;
+  uint8_t not_used1                    : 1;
   uint8_t loprio_sleepcnt_en           : 1;
   uint8_t loprio_fifo_en               : 1;
 #endif /* DRV_BYTE_ORDER */
 } iis3dwb10is_ispu_loprio_en_t;
 
-#define IIS3DWB10IS_SLEEPCNT_PL_L                0x3CU
-#define IIS3DWB10IS_SLEEPCNT_PL_H                0x3DU
 #define IIS3DWB10IS_SLEEPCNT_TH_L                0x3EU
 #define IIS3DWB10IS_SLEEPCNT_TH_H                0x3FU
 
@@ -746,13 +731,13 @@ typedef struct
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
   uint8_t diff_fifo                    : 4;
   uint8_t fifo_full_ia                 : 1;
-  uint8_t not_used_01                  : 1;
+  uint8_t counter_bdr_ia               : 1;
   uint8_t fifo_ovr_ia                  : 1;
   uint8_t fifo_wtm_ia                  : 1;
 #elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
   uint8_t fifo_wtm_ia                  : 1;
   uint8_t fifo_ovr_ia                  : 1;
-  uint8_t not_used_01                  : 1;
+  uint8_t counter_bdr_ia               : 1;
   uint8_t fifo_full_ia                 : 1;
   uint8_t diff_fifo                    : 4;
 #endif /* DRV_BYTE_ORDER */
@@ -788,12 +773,12 @@ typedef struct
 #define IIS3DWB10IS_SLEEPCNT_TIME_L              0x62U
 #define IIS3DWB10IS_SLEEPCNT_TIME_H              0x63U
 
-#define IIS3DWB10IS_INT_CTRL3                    0x6EU
+#define IIS3DWB10IS_INT_CTRL4                    0x6EU
 typedef struct
 {
 #if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
-  uint8_t int2_ispu_int_b              : 1;
-  uint8_t int1_ispu_int_a              : 1;
+  uint8_t int2_ispu                    : 1;
+  uint8_t int1_ispu                    : 1;
   uint8_t int2_timer                   : 1;
   uint8_t int1_timer                   : 1;
   uint8_t not_used0                    : 4;
@@ -801,10 +786,149 @@ typedef struct
   uint8_t not_used0                    : 4;
   uint8_t int1_timer                   : 1;
   uint8_t int2_timer                   : 1;
-  uint8_t int1_ispu_int_a              : 1;
-  uint8_t int2_ispu_int_b              : 1;
+  uint8_t int1_ispu                    : 1;
+  uint8_t int2_ispu                    : 1;
 #endif /* DRV_BYTE_ORDER */
-} iis3dwb10is_int_ctrl3_t;
+} iis3dwb10is_int_ctrl4_t;
+
+/**
+  * @}
+  *
+  */
+
+/** @defgroup bitfields page ispu
+  * @{
+  *
+  */
+
+#define IIS3DWB10IS_ISPU_CONFIG                  0x02U
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t rst_n                        : 1;
+  uint8_t clk_dis                      : 1;
+  uint8_t not_used0                    : 1;
+  uint8_t latched                      : 2;
+  uint8_t not_used1                    : 1;
+  uint8_t dbg_rst_sts                  : 1;
+  uint8_t not_used2                    : 1;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t not_used2                    : 1;
+  uint8_t dbg_rst_sts                  : 1;
+  uint8_t not_used1                    : 1;
+  uint8_t latched                      : 2;
+  uint8_t not_used0                    : 1;
+  uint8_t clk_dis                      : 1;
+  uint8_t rst_n                        : 1;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_ispu_config_t;
+
+#define IIS3DWB10IS_ISPU_STATUS                  0x04U
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t orun                         : 1;
+  uint8_t not_used0                    : 5;
+  uint8_t boot_end                     : 1;
+  uint8_t not_used1                    : 1;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t not_used1                    : 1;
+  uint8_t boot_end                     : 1;
+  uint8_t not_used0                    : 5;
+  uint8_t orun                         : 1;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_ispu_status_t;
+
+#define IIS3DWB10IS_ISPU_MEM_SEL                 0x07U
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t not_used0                    : 2;
+  uint8_t rom_sel                      : 1;
+  uint8_t not_used1                    : 3;
+  uint8_t read_ram                     : 1;
+  uint8_t not_used2                    : 1;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t not_used2                    : 1;
+  uint8_t read_ram                     : 1;
+  uint8_t not_used1                    : 3;
+  uint8_t rom_sel                      : 1;
+  uint8_t not_used0                    : 2;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_ispu_mem_sel_t;
+
+#define IIS3DWB10IS_ISPU_MEM_ADDR2               0x08U
+#define IIS3DWB10IS_ISPU_MEM_ADDR1               0x09U
+
+#define IIS3DWB10IS_ISPU_MEM_DATA_1              0x0AU
+#define IIS3DWB10IS_ISPU_MEM_DATA_2              0x0BU
+
+#define IIS3DWB10IS_ISPU_IF2S_FLAG_L             0x0CU
+#define IIS3DWB10IS_ISPU_IF2S_FLAG_H             0x0DU
+
+#define IIS3DWB10IS_ISPU_S2IF_FLAG_L             0x0EU
+#define IIS3DWB10IS_ISPU_S2IF_FLAG_H             0x0FU
+
+#define IIS3DWB10IS_ISPU_DOUT_00_L               0x10U
+#define IIS3DWB10IS_ISPU_DOUT_00_H               0x11U
+#define IIS3DWB10IS_ISPU_DOUT_01_L               0x12U
+#define IIS3DWB10IS_ISPU_DOUT_01_H               0x13U
+#define IIS3DWB10IS_ISPU_DOUT_02_L               0x14U
+#define IIS3DWB10IS_ISPU_DOUT_02_H               0x15U
+#define IIS3DWB10IS_ISPU_DOUT_03_L               0x16U
+#define IIS3DWB10IS_ISPU_DOUT_03_H               0x17U
+#define IIS3DWB10IS_ISPU_DOUT_04_L               0x18U
+#define IIS3DWB10IS_ISPU_DOUT_04_H               0x19U
+#define IIS3DWB10IS_ISPU_DOUT_05_L               0x1AU
+#define IIS3DWB10IS_ISPU_DOUT_05_H               0x1BU
+#define IIS3DWB10IS_ISPU_DOUT_06_L               0x1CU
+#define IIS3DWB10IS_ISPU_DOUT_06_H               0x1DU
+#define IIS3DWB10IS_ISPU_DOUT_07_L               0x1EU
+#define IIS3DWB10IS_ISPU_DOUT_07_H               0x1FU
+#define IIS3DWB10IS_ISPU_DOUT_08_L               0x20U
+#define IIS3DWB10IS_ISPU_DOUT_08_H               0x21U
+#define IIS3DWB10IS_ISPU_DOUT_09_L               0x22U
+#define IIS3DWB10IS_ISPU_DOUT_09_H               0x23U
+#define IIS3DWB10IS_ISPU_DOUT_10_L               0x24U
+#define IIS3DWB10IS_ISPU_DOUT_10_H               0x25U
+#define IIS3DWB10IS_ISPU_DOUT_11_L               0x26U
+#define IIS3DWB10IS_ISPU_DOUT_11_H               0x27U
+#define IIS3DWB10IS_ISPU_DOUT_12_L               0x28U
+#define IIS3DWB10IS_ISPU_DOUT_12_H               0x29U
+#define IIS3DWB10IS_ISPU_DOUT_13_L               0x2AU
+#define IIS3DWB10IS_ISPU_DOUT_13_H               0x2BU
+#define IIS3DWB10IS_ISPU_DOUT_14_L               0x2CU
+#define IIS3DWB10IS_ISPU_DOUT_14_H               0x2DU
+#define IIS3DWB10IS_ISPU_DOUT_15_L               0x2EU
+#define IIS3DWB10IS_ISPU_DOUT_15_H               0x2FU
+
+#define IIS3DWB10IS_ISPU_INT1_CTRL1              0x50U
+#define IIS3DWB10IS_ISPU_INT1_CTRL2              0x51U
+#define IIS3DWB10IS_ISPU_INT2_CTRL1              0x54U
+#define IIS3DWB10IS_ISPU_INT2_CTRL2              0x55U
+
+#define IIS3DWB10IS_ISPU_INT_STATUS1             0x58U
+#define IIS3DWB10IS_ISPU_INT_STATUS2             0x59U
+
+#define IIS3DWB10IS_ISPU_INT_PIN                 0x5CU
+typedef struct
+{
+#if DRV_BYTE_ORDER == DRV_LITTLE_ENDIAN
+  uint8_t int1                         : 1;
+  uint8_t int2                         : 1;
+#elif DRV_BYTE_ORDER == DRV_BIG_ENDIAN
+  uint8_t int2                         : 1;
+  uint8_t int1                         : 1;
+#endif /* DRV_BYTE_ORDER */
+} iis3dwb10is_ispu_int_pin_t;
+
+#define IIS3DWB10IS_ISPU_ALGO1                   0x70U
+#define IIS3DWB10IS_ISPU_ALGO2                   0x71U
+
+/**
+  * @}
+  *
+  */
 
 #ifndef __weak
 #define __weak __attribute__((weak))
@@ -841,19 +965,15 @@ float_t iis3dwb10is_from_fs200g_to_mg(int32_t lsb);
 typedef enum
 {
   IIS3DWB10IS_MAIN_MEM_BANK =                    0x0,
-  IIS3DWB10IS_ISPU_MEM_BANK =                    0x3,
+  IIS3DWB10IS_ISPU_MEM_BANK =                    0x1,
+  IIS3DWB10IS_ISPU_MEM_BANK_RAM_ACCESS =         0x3,
 } iis3dwb10is_mem_bank_t;
 int32_t iis3dwb10is_mem_bank_set(const stmdev_ctx_t *ctx, iis3dwb10is_mem_bank_t val);
 int32_t iis3dwb10is_mem_bank_get(const stmdev_ctx_t *ctx, iis3dwb10is_mem_bank_t *val);
 
-typedef struct
-{
-  uint8_t sw_por : 1; /* Complete reset of sensor */
-  uint8_t sw_rst : 1; /* Reset register to default */
-  uint8_t boot   : 1; /* reloads memory content */
-} iis3dwb10is_reset_t;
-int32_t iis3dwb10is_reset_set(const stmdev_ctx_t *ctx, iis3dwb10is_reset_t val);
-int32_t iis3dwb10is_reset_get(const stmdev_ctx_t *ctx, iis3dwb10is_reset_t *val);
+int32_t iis3dwb10is_reboot(const stmdev_ctx_t *ctx);
+int32_t iis3dwb10is_sw_por(const stmdev_ctx_t *ctx);
+int32_t iis3dwb10is_sw_reset(const stmdev_ctx_t *ctx);
 
 typedef struct
 {
@@ -886,9 +1006,9 @@ int32_t iis3dwb10is_xl_data_rate_get(const stmdev_ctx_t *ctx, iis3dwb10is_data_r
 
 typedef enum
 {
-  IIS3DWB_50g   = 0,
-  IIS3DWB_100g  = 1,
-  IIS3DWB_200g  = 2,
+  IIS3DWB10IS_50g   = 0,
+  IIS3DWB10IS_100g  = 1,
+  IIS3DWB10IS_200g  = 2,
 } iis3dwb10is_fs_xl_t;
 int32_t iis3dwb10is_xl_full_scale_set(const stmdev_ctx_t *ctx, iis3dwb10is_fs_xl_t val);
 int32_t iis3dwb10is_xl_full_scale_get(const stmdev_ctx_t *ctx, iis3dwb10is_fs_xl_t *val);
@@ -945,8 +1065,10 @@ typedef struct
 {
   enum
   {
-    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_50US = 0x0,
-    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_2US  = 0x1,
+    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_2US    = 0x0,
+    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_12_5US = 0x1,
+    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_25US   = 0x2,
+    IIS3DWB10IS_I3C_BUS_AVAIL_TIME_50US   = 0x3,
   } bus_act_sel;
   uint8_t i3c_int_en                   : 1;
   uint8_t i3c_disable                  : 1;
@@ -962,6 +1084,21 @@ typedef enum
 } iis3dwb10is_spi_mode_t;
 int32_t iis3dwb10is_spi_mode_set(const stmdev_ctx_t *ctx, iis3dwb10is_spi_mode_t val);
 int32_t iis3dwb10is_spi_mode_get(const stmdev_ctx_t *ctx, iis3dwb10is_spi_mode_t *val);
+
+typedef enum
+{
+  IIS3DWB10IS_LPF1_BW_20KHz         = 0x0,
+  IIS3DWB10IS_LPF1_BW_17KHz2        = 0x1,
+  IIS3DWB10IS_LPF1_BW_14KHz7        = 0x2,
+  IIS3DWB10IS_LPF1_BW_12KHz         = 0x3,
+  IIS3DWB10IS_LPF1_BW_9KHz32        = 0x4,
+  IIS3DWB10IS_LPF1_BW_6KHz89        = 0x5,
+  IIS3DWB10IS_LPF1_BW_4KHz55        = 0x6,
+  IIS3DWB10IS_LPF1_BW_2KHz56        = 0x7,
+  IIS3DWB10IS_LPF1_SWITCH_ODR       = 0x8,
+} iis3dwb10is_lpf1_cfg_t;
+int32_t iis3dwb10is_lpf1_cfg_set(const stmdev_ctx_t *ctx, iis3dwb10is_lpf1_cfg_t val);
+int32_t iis3dwb10is_lpf1_cfg_get(const stmdev_ctx_t *ctx, iis3dwb10is_lpf1_cfg_t *val);
 
 int32_t iis3dwb10is_fifo_watermark_set(const stmdev_ctx_t *ctx, uint16_t val);
 int32_t iis3dwb10is_fifo_watermark_get(const stmdev_ctx_t *ctx, uint16_t *val);
@@ -986,7 +1123,6 @@ typedef struct
 {
   uint8_t batch_xl   : 1;
   uint8_t batch_temp : 1;
-  uint8_t batch_qvar : 1;
   uint8_t batch_ispu : 1;
   enum
   {
@@ -1030,11 +1166,9 @@ typedef struct
   enum
   {
     IIS3DWB10IS_TAG_EMPTY                 = 0x00,
-    IIS3DWB10IS_TAG_QVAR                  = 0x08,
     IIS3DWB10IS_TAG_XL                    = 0x10,
     IIS3DWB10IS_TAG_TEMP                  = 0x18,
     IIS3DWB10IS_TAG_TS                    = 0x20,
-    IIS3DWB10IS_TAG_TEMP_QVAR             = 0x28,
   } tag;
 
   uint8_t raw[FIFO_ROW_LEN - 1];
@@ -1045,32 +1179,14 @@ typedef struct
     int32_t z_raw    : 20;
   } xl;
   int16_t temp_raw;
-  int16_t qvar;
   uint64_t ts_raw;
 } iis3dwb10is_fifo_out_raw_t;
 int32_t iis3dwb10is_fifo_process(uint8_t *fifo_buf, iis3dwb10is_fifo_out_raw_t *val);
 
 int32_t iis3dwb10is_fifo_out_raw_get(const stmdev_ctx_t *ctx, uint8_t *fifo_buf, uint16_t cnt);
 
-int32_t iis3dwb10is_counter_odr_cfg_set(const stmdev_ctx_t *ctx, uint16_t val);
-int32_t iis3dwb10is_counter_odr_cfg_get(const stmdev_ctx_t *ctx, uint16_t *val);
-
-typedef struct
-{
-  uint8_t qvar_en              : 1;
-  uint8_t qvar1_pad_en         : 1;
-  uint8_t qvar2_pad_en         : 1;
-  uint8_t qvar_switch          : 1;
-  uint8_t lpf                  : 1;
-  uint8_t hpf                  : 1;
-  enum
-  {
-    IIS3DWB10IS_QVAR_GAIN_1X    = 0x0,
-    IIS3DWB10IS_QVAR_GAIN_2X    = 0x1,
-  } c_zin;
-} iis3dwb10is_qvar_mode_t;
-int32_t iis3dwb10is_qvar_mode_set(const stmdev_ctx_t *ctx, iis3dwb10is_qvar_mode_t val);
-int32_t iis3dwb10is_qvar_mode_get(const stmdev_ctx_t *ctx, iis3dwb10is_qvar_mode_t *val);
+int32_t iis3dwb10is_counter_bdr_cfg_set(const stmdev_ctx_t *ctx, uint16_t val);
+int32_t iis3dwb10is_counter_bdr_cfg_get(const stmdev_ctx_t *ctx, uint16_t *val);
 
 typedef struct
 {
@@ -1080,9 +1196,7 @@ typedef struct
     IIS3DWB10IS_SLP_TICK_FAST    = 0x1,
   } tick_sel;
   uint8_t enable               : 1;
-  uint8_t preload_en           : 1;
   uint8_t reset                : 1;
-  uint16_t preload_val;
   uint16_t threshold_val;
 } iis3dwb10is_slpcnt_cfg_t;
 int32_t iis3dwb10is_sleepcnt_cfg_set(const stmdev_ctx_t *ctx, iis3dwb10is_slpcnt_cfg_t val);
@@ -1129,34 +1243,29 @@ int32_t iis3dwb10is_data_ready_mode_get(const stmdev_ctx_t *ctx,
 
 typedef struct
 {
-  uint8_t int1_drdy_xl         : 1;
-  uint8_t int1_drdy_qvar       : 1;
-  uint8_t int1_sleep_cnt       : 1;
-  uint8_t int1_ext_trig        : 1;
-  uint8_t int1_fifo_th         : 1;
-  uint8_t int1_fifo_ovr        : 1;
-  uint8_t int1_fifo_full       : 1;
-  uint8_t int2_drdy_xl         : 1;
-  uint8_t int2_drdy_qvar       : 1;
-  uint8_t int2_sleep_cnt       : 1;
-  uint8_t int2_fifo_th         : 1;
-  uint8_t int2_fifo_ovr        : 1;
-  uint8_t int2_fifo_full       : 1;
-  uint8_t int1_drdy_temp       : 1;
-  uint8_t int1_boot            : 1;
-  uint8_t int2_drdy_temp       : 1;
-  uint8_t int2_sleep_ispu      : 1;
+  uint8_t drdy_xl              : 1;
+  uint8_t sleep_cnt            : 1;
+  uint8_t ext_trig             : 1;
+  uint8_t fifo_th              : 1;
+  uint8_t fifo_ovr             : 1;
+  uint8_t fifo_full            : 1;
+  uint8_t drdy_temp            : 1;
+  uint8_t boot                 : 1;
+  uint8_t sleep_ispu           : 1;
   uint8_t int2_on_int1         : 1;
 } iis3dwb10is_pin_int_route_t;
-int32_t iis3dwb10is_pin_int_route_set(const stmdev_ctx_t *ctx,
-                                      iis3dwb10is_pin_int_route_t val);
-int32_t iis3dwb10is_pin_int_route_get(const stmdev_ctx_t *ctx,
-                                      iis3dwb10is_pin_int_route_t *val);
+int32_t iis3dwb10is_pin_int1_route_set(const stmdev_ctx_t *ctx,
+                                       iis3dwb10is_pin_int_route_t val);
+int32_t iis3dwb10is_pin_int1_route_get(const stmdev_ctx_t *ctx,
+                                       iis3dwb10is_pin_int_route_t *val);
+int32_t iis3dwb10is_pin_int2_route_set(const stmdev_ctx_t *ctx,
+                                       iis3dwb10is_pin_int_route_t val);
+int32_t iis3dwb10is_pin_int2_route_get(const stmdev_ctx_t *ctx,
+                                       iis3dwb10is_pin_int_route_t *val);
 
 typedef struct
 {
   uint8_t drdy_xl              : 1;
-  uint8_t drdy_qvar            : 1;
   uint8_t drdy_temp            : 1;
   uint8_t sleepcnt_ia          : 1;
   uint8_t ext_trig_ia          : 1;
@@ -1169,6 +1278,7 @@ int32_t iis3dwb10is_temperature_raw_get(const stmdev_ctx_t *ctx, int16_t *val);
 int32_t iis3dwb10is_acceleration_16b_raw_get(const stmdev_ctx_t *ctx, int16_t *val);
 int32_t iis3dwb10is_acceleration_raw_get(const stmdev_ctx_t *ctx, int32_t *val);
 
+int32_t iis3dwb10is_ispu_enable(const stmdev_ctx_t *ctx, uint8_t val);
 int32_t iis3dwb10is_ispu_reset(const stmdev_ctx_t *ctx);
 int32_t iis3dwb10is_ispu_timestamp_en_set(const stmdev_ctx_t *ctx, uint8_t val);
 int32_t iis3dwb10is_ispu_timestamp_en_get(const stmdev_ctx_t *ctx, uint8_t *val);
@@ -1196,11 +1306,12 @@ int32_t iis3dwb10is_ispu_trigger_interrupt(const stmdev_ctx_t *ctx, uint8_t val)
 
 typedef struct
 {
-  uint8_t status_a_sl;
-  uint8_t status_b_sl;
-} iis3dwb10is_ispu_status_t;
+  uint16_t ispu_ia;
+} iis3dwb10is_ispu_int_status_t;
 
-int32_t iis3dwb10is_ispu_status_get(const stmdev_ctx_t *ctx, iis3dwb10is_ispu_status_t *val);
+int32_t iis3dwb10is_ispu_status_get(const stmdev_ctx_t *ctx, iis3dwb10is_ispu_int_status_t *val);
+
+int32_t iis3dwb10is_tpf_get(const stmdev_ctx_t *ctx, uint8_t *val);
 
 typedef struct
 {
@@ -1215,7 +1326,6 @@ typedef struct
 {
   uint8_t fifo_en             : 1;
   uint8_t sleepcnt_en         : 1;
-  uint8_t qvar_en             : 1;
   uint8_t ext_trg_en          : 1;
   uint8_t user_trg_en         : 1;
   uint8_t temp_en             : 1;
@@ -1225,6 +1335,63 @@ int32_t iis3dwb10is_ispu_loprio_cfg_set(const stmdev_ctx_t *ctx,
                                         iis3dwb10is_ispu_loprio_cfg_t val);
 int32_t iis3dwb10is_ispu_loprio_cfg_get(const stmdev_ctx_t *ctx,
                                         iis3dwb10is_ispu_loprio_cfg_t *val);
+
+typedef enum
+{
+  IIS3DWB10IS_ISPU_TURN_ON =              0x0,
+  IIS3DWB10IS_ISPU_TURN_OFF =             0x1,
+} iis3dwb10is_ispu_boot_latched_t;
+int32_t iis3dwb10is_ispu_boot_set(const stmdev_ctx_t *ctx,
+                                  iis3dwb10is_ispu_boot_latched_t val);
+
+typedef enum
+{
+  IIS3DWB10IS_ISPU_INT_PULSED_PIN_PULSED   = 0x0,
+  IIS3DWB10IS_ISPU_INT_LATCHED_PIN_PULSED  = 0x1,
+  IIS3DWB10IS_ISPU_INT_LATCHED_PIN_LATCHED = 0x2,
+} iis3dwb10is_ispu_int_latched_t;
+int32_t iis3dwb10is_ispu_int_latched_set(const stmdev_ctx_t *ctx,
+                                         iis3dwb10is_ispu_int_latched_t val);
+int32_t iis3dwb10is_ispu_int_latched_get(const stmdev_ctx_t *ctx,
+                                         iis3dwb10is_ispu_int_latched_t *val);
+
+typedef enum
+{
+  IIS3DWB10IS_ISPU_BOOT_IN_PROGRESS =     0x0,
+  IIS3DWB10IS_ISPU_BOOT_ENDED =           0x1,
+} iis3dwb10is_ispu_boot_end_t;
+int32_t iis3dwb10is_ispu_get_boot_status(const stmdev_ctx_t *ctx,
+                                         iis3dwb10is_ispu_boot_end_t *val);
+
+#define IIS3DWB10IS_ISPU_DATA_RAM_START    0x2000
+#define IIS3DWB10IS_ISPU_PROGRAM_RAM_START 0x0
+
+typedef enum
+{
+  IIS3DWB10IS_ISPU_DATA_RAM_MEMORY =      0x0,
+  IIS3DWB10IS_ISPU_PROGRAM_RAM_MEMORY =   0x1,
+} iis3dwb10is_ispu_memory_type_t;
+
+int32_t iis3dwb10is_ispu_write_memory(const stmdev_ctx_t *ctx,
+                                      iis3dwb10is_ispu_memory_type_t mem_sel,
+                                      uint16_t mem_addr, uint8_t *mem_data, uint16_t len);
+int32_t iis3dwb10is_ispu_read_memory(const stmdev_ctx_t *ctx,
+                                     iis3dwb10is_ispu_memory_type_t mem_sel,
+                                     uint16_t mem_addr, uint8_t *mem_data, uint16_t len);
+
+int32_t iis3dwb10is_ispu_write_flags(const stmdev_ctx_t *ctx, uint16_t data);
+int32_t iis3dwb10is_ispu_read_flags(const stmdev_ctx_t *ctx, uint16_t *data);
+int32_t iis3dwb10is_ispu_clear_flags(const stmdev_ctx_t *ctx);
+
+int32_t iis3dwb10is_ispu_int1_ctrl_get(const stmdev_ctx_t *ctx, uint16_t *val);
+int32_t iis3dwb10is_ispu_int1_ctrl_set(const stmdev_ctx_t *ctx, uint16_t val);
+int32_t iis3dwb10is_ispu_int2_ctrl_get(const stmdev_ctx_t *ctx, uint16_t *val);
+int32_t iis3dwb10is_ispu_int2_ctrl_set(const stmdev_ctx_t *ctx, uint16_t val);
+
+int32_t iis3dwb10is_ispu_int_status_get(const stmdev_ctx_t *ctx, uint16_t *val);
+
+int32_t iis3dwb10is_ispu_algo_get(const stmdev_ctx_t *ctx, uint16_t *val);
+int32_t iis3dwb10is_ispu_algo_set(const stmdev_ctx_t *ctx, uint16_t val);
 
 /**
   * @}

@@ -485,11 +485,6 @@
               <FilePath>..\mx\Src\icache.c</FilePath>
             </File>
             <File>
-              <FileName>memorymap.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\mx\Src\memorymap.c</FilePath>
-            </File>
-            <File>
               <FileName>mx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\mx\Src\mx.c</FilePath>
@@ -703,6 +698,11 @@
               <FileName>ABusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusIF.c</FileName>
@@ -3123,11 +3123,6 @@
               <FilePath>..\mx\Src\icache.c</FilePath>
             </File>
             <File>
-              <FileName>memorymap.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\mx\Src\memorymap.c</FilePath>
-            </File>
-            <File>
               <FileName>mx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\mx\Src\mx.c</FilePath>
@@ -3341,6 +3336,11 @@
               <FileName>ABusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\ABusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusIF.c</FileName>

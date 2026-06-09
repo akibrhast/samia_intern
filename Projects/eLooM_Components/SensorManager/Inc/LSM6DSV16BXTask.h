@@ -43,6 +43,14 @@ extern "C" {
 
 #define LSM6DSV16BX_MAX_SAMPLES_PER_IT        (LSM6DSV16BX_MAX_WTM_LEVEL)
 
+#ifndef LSM6DSV16BX_TDM_ENABLED
+#define LSM6DSV16BX_TDM_ENABLED                0
+#endif
+
+#ifndef LSM6DSV16BX_TDM_DMA_SAMPLES
+#define LSM6DSV16BX_TDM_DMA_SAMPLES            16000u*3u*2u /* 16000 samples * 3 axes * 2 (double buffer) */
+#endif
+
 
 #define LSM6DSV16BX_CFG_MAX_LISTENERS         2
 
@@ -78,6 +86,18 @@ struct _LSM6DSV16BXTask
     */
   const MX_GPIOParams_t *pCSConfig;
 
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * SAI configuration parameters used by TDM stream.
+    */
+  const MX_SAIParams_t *pSAIConfig;
+#endif
+
+  /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
   /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
@@ -87,6 +107,13 @@ struct _LSM6DSV16BXTask
     * Implements the accelerometer ISensorMems interface.
     */
   ISensorMems_t acc_sensor_if;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * Implements the TDM accelerometer ISensorMems interface.
+    */
+  ISensorMems_t tdm_acc_sensor_if;
+#endif
 
   /**
     * Implements the gyroscope ISensorMems interface.
@@ -117,6 +144,23 @@ struct _LSM6DSV16BXTask
     * Specifies acc output data
     */
   EMData_t data_acc;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * Specifies TDM accelerometer sensor capabilities.
+    */
+  const SensorDescriptor_t *tdm_acc_sensor_descriptor;
+
+  /**
+    * Specifies TDM accelerometer sensor configuration.
+    */
+  SensorStatus_t tdm_acc_sensor_status;
+
+  /**
+    * Specifies TDM acc output data.
+    */
+  EMData_t data_tdm_acc;
+#endif
   /**
     * Specifies gyroscope sensor capabilities.
     */
@@ -150,6 +194,13 @@ struct _LSM6DSV16BXTask
     * Specifies the sensor ID for the accelerometer subsensor.
     */
   uint8_t acc_id;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * Specifies the sensor ID for the TDM accelerometer subsensor.
+    */
+  uint8_t tdm_acc_id;
+#endif
 
   /**
     * Specifies the sensor ID for the gyroscope subsensor.
@@ -235,6 +286,13 @@ struct _LSM6DSV16BXTask
     */
   IEventSrc *p_acc_event_src;
 
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * ::IEventSrc interface implementation for TDM accelerometer stream.
+    */
+  IEventSrc *p_tdm_acc_event_src;
+#endif
+
   /**
     * ::IEventSrc interface implementation for this class.
     */
@@ -275,6 +333,38 @@ struct _LSM6DSV16BXTask
     * */
   uint8_t first_data_ready;
   uint8_t first_data_ready_threshold;
+
+#if LSM6DSV16BX_TDM_ENABLED
+  /**
+    * Circular DMA buffer used by SAI to acquire TDM accelerometer samples.
+    */
+  int16_t p_tdm_dma_buff[LSM6DSV16BX_TDM_DMA_SAMPLES];
+
+  /**
+    * Pointer to the currently active half-buffer produced by SAI DMA callbacks.
+    */
+  int16_t *p_tdm_data_ptr;
+
+  /**
+    * Number of XYZ samples available in p_tdm_data_ptr.
+    */
+  uint16_t tdm_samples_count;
+
+  /**
+    * Used to update the instantaneous odr.
+    */
+  double_t tdm_prev_timestamp;
+
+  /**
+    * Last half-buffer index produced by SAI callback (1=first half, 2=second half).
+    */
+  uint8_t tdm_half;
+
+  /**
+    * True when TDM capture via SAI DMA is running.
+    */
+  boolean_t tdm_running;
+#endif
 };
 
 // Public API declaration
@@ -287,6 +377,16 @@ struct _LSM6DSV16BXTask
   * or NULL if out of memory error occurs.
   */
 ISourceObservable *LSM6DSV16BXTaskGetAccSensorIF(LSM6DSV16BXTask *_this);
+
+#if LSM6DSV16BX_TDM_ENABLED
+/**
+  * Get the ISourceObservable interface for the TDM accelerometer.
+  * @param _this [IN] specifies a pointer to a task object.
+  * @return a pointer to the generic object ::ISourceObservable if success,
+  * or NULL if out of memory error occurs.
+  */
+ISourceObservable *LSM6DSV16BXTaskGetTdmAccSensorIF(LSM6DSV16BXTask *_this);
+#endif
 
 /**
   * Get the ISourceObservable interface for the gyroscope.
@@ -324,7 +424,11 @@ ISensorLL_t *LSM6DSV16BXTaskGetSensorLLIF(LSM6DSV16BXTask *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig);
+AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                     const void *pSAIConfig,
+#endif
+                                     boolean_t i3c_flag);
 
 /**
   * Call the default ::LSM6DSV16BXTaskAlloc and then it overwrite sensor name
@@ -340,7 +444,10 @@ AManagedTaskEx *LSM6DSV16BXTaskAlloc(const void *pIRQConfig, const void *pMLCCon
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LSM6DSV16BXTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                            const char *p_name);
+#if LSM6DSV16BX_TDM_ENABLED
+                                            const void *pSAIConfig,
+#endif
+                                            boolean_t i3c_flag, const char *p_name);
 
 /**
   * Allocate an instance of ::LSM6DSV16BXTask in a memory block specified by the application.
@@ -365,7 +472,11 @@ AManagedTaskEx *LSM6DSV16BXTaskAllocSetName(const void *pIRQConfig, const void *
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LSM6DSV16BXTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                           const void *pCSConfig);
+                                           const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                           const void *pSAIConfig,
+#endif
+                                           boolean_t i3c_flag);
 
 /**
   * Call the default ::LSM6DSV16BXTaskAlloc and then it overwrite sensor name
@@ -389,6 +500,10 @@ AManagedTaskEx *LSM6DSV16BXTaskStaticAlloc(void *p_mem_block, const void *pIRQCo
   */
 AManagedTaskEx *LSM6DSV16BXTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
                                                   const void *pCSConfig,
+#if LSM6DSV16BX_TDM_ENABLED
+                                                  const void *pSAIConfig,
+#endif
+                                                  boolean_t i3c_flag,
                                                   const char *p_name);
 
 /**
@@ -405,6 +520,15 @@ ABusIF *LSM6DSV16BXTaskGetSensorIF(LSM6DSV16BXTask *_this);
   * @return a pointer to the ::IEventSrc interface of the sensor.
   */
 IEventSrc *LSM6DSV16BXTaskGetAccEventSrcIF(LSM6DSV16BXTask *_this);
+
+#if LSM6DSV16BX_TDM_ENABLED
+/**
+  * Get the ::IEventSrc interface for the TDM accelerometer stream.
+  * @param _this [IN] specifies a pointer to a task object.
+  * @return a pointer to the ::IEventSrc interface of the sensor.
+  */
+IEventSrc *LSM6DSV16BXTaskGetTdmAccEventSrcIF(LSM6DSV16BXTask *_this);
+#endif
 
 /**
   * Get the ::IEventSrc interface for the sensor task.

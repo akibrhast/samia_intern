@@ -87,8 +87,8 @@
 #include "Iis2dulpx_Acc_PnPL.h"
 #include "Iis2dulpx_Mlc_PnPL.h"
 #include "Iis3dwb_Ext_Acc_PnPL.h"
-#include "Iis3dwb10is_Ext_Acc_PnPL.h"
-#include "Iis3dwb10is_Ext_Ispu_PnPL.h"
+#include "Iis3dwb10is_Acc_PnPL.h"
+#include "Iis3dwb10is_Ispu_PnPL.h"
 #include "Ilps28qsw_Press_PnPL.h"
 #include "Ism330bx_Acc_PnPL.h"
 #include "Ism330bx_Gyro_PnPL.h"
@@ -139,6 +139,7 @@ static IPnPLComponent_t *pIIS2MDC_MAG_PnPLObj = NULL;
 static IPnPLComponent_t *pIMP23ABSU_MIC_PnPLObj = NULL;
 static IPnPLComponent_t *pIIS2DLPC_ACC_PnPLObj = NULL;
 static IPnPLComponent_t *pIIS2DULPX_ACC_PnPLObj = NULL;
+static IPnPLComponent_t *pIIS2DULPX_MLC_PnPLObj = NULL;
 static IPnPLComponent_t *pSTTS22H_TEMP_PnPLObj = NULL;
 static IPnPLComponent_t *pSTTS22H_Ext_TEMP_PnPLObj = NULL;
 static IPnPLComponent_t *pILPS22QS_PRESS_PnPLObj = NULL;
@@ -265,11 +266,11 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (ext_ism330bx)
   {
-    sISM330BXObj = ISM330BXTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sISM330BXObj = ISM330BXTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_ism6hg256x)
   {
-    sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sISM6HG256XObj = ISM6HG256XTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_iis330is)
   {
@@ -277,11 +278,11 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (ext_iis2dulpx)
   {
-    sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams);
+    sIIS2DULPXObj = IIS2DULPXTaskAlloc(&MX_GPIO_INT1_EXTERNAL_InitParams, NULL, &MX_GPIO_CS_EXTERNALInitParams, false);
   }
   if (ext_ilps28qsw)
   {
-    sILPS28QSWObj = ILPS28QSWTaskAlloc(NULL, NULL);
+    sILPS28QSWObj = ILPS28QSWTaskAlloc(NULL, NULL, false);
     sI2C3BusObj = I2CBusTaskAlloc(&MX_I2C3InitParams);
   }
 
@@ -294,7 +295,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
     sI2C3BusObj = I2CBusTaskAlloc(&MX_I2C3InitParams);
   }
 
-  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL);
+  sILPS22QSObj = ILPS22QSTaskAlloc(NULL, NULL, false);
   sIMP23ABSUObj = IMP23ABSUTaskAlloc(&MX_MDF1InitParams, &MX_ADC1InitParams);
   sIMP34DT05Obj = IMP34DT05TaskAlloc(&MX_ADF1InitParams);
 
@@ -386,8 +387,8 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   }
   if (sIIS3DWB10ISExtObj)
   {
-    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Ext_Acc_PnPLAlloc();
-    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ext_Ispu_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ACC_PnPLObj = Iis3dwb10is_Acc_PnPLAlloc();
+    pIIS3DWB10IS_Ext_ISPU_PnPLObj = Iis3dwb10is_Ispu_PnPLAlloc();
   }
   if (sISM330BXObj)
   {
@@ -421,6 +422,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   if (sIIS2DULPXObj)
   {
     pIIS2DULPX_ACC_PnPLObj = Iis2dulpx_Acc_PnPLAlloc();
+    pIIS2DULPX_MLC_PnPLObj = Iis2dulpx_Mlc_PnPLAlloc();
   }
   if (sILPS28QSWObj)
   {
@@ -562,6 +564,7 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   if (sIIS2DULPXObj)
   {
     IEventSrcAddEventListener(IIS2DULPXTaskGetEventSrcIF((IIS2DULPXTask *)sIIS2DULPXObj), DatalogAppListener);
+    IEventSrcAddEventListener(IIS2DULPXTaskGetMlcEventSrcIF((IIS2DULPXTask *)sIIS2DULPXObj), DatalogAppListener);
   }
   if (sILPS28QSWObj)
   {
@@ -576,6 +579,10 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   else if (sISM6HG256XObj)
   {
     DatalogAppTask_SetExtMLCIF((AManagedTask *) sISM6HG256XObj);
+  }
+  else if (sIIS2DULPXObj)
+  {
+    DatalogAppTask_SetExtMLCIF((AManagedTask *) sIIS2DULPXObj);
   }
   else if (sISM330ISObj)
   {
@@ -670,6 +677,7 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   {
     Iis2dulpx_Acc_PnPLInit(pIIS2DULPX_ACC_PnPLObj);
     iis2dulpx_acc_set_enable(false, NULL);
+    Iis2dulpx_Mlc_PnPLInit(pIIS2DULPX_MLC_PnPLObj);
   }
   if (sILPS28QSWObj)
   {
@@ -678,9 +686,9 @@ sys_error_code_t SysOnStartApplication(ApplicationContext *pAppContext)
   }
   if (sIIS3DWB10ISExtObj)
   {
-    Iis3dwb10is_Ext_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
-    iis3dwb10is_ext_acc_set_enable(true, NULL);
-    Iis3dwb10is_Ext_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
+    Iis3dwb10is_Acc_PnPLInit(pIIS3DWB10IS_Ext_ACC_PnPLObj);
+    iis3dwb10is_acc_set_enable(true, NULL);
+    Iis3dwb10is_Ispu_PnPLInit(pIIS3DWB10IS_Ext_ISPU_PnPLObj);
 
     iis2dlpc_acc_set_enable(false, NULL);
     iis2iclx_acc_set_enable(false, NULL);

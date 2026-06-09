@@ -57,17 +57,6 @@ const MX_I2CParams_t MX_I2C1InitParams =
 };
 
 /**
-  * (USER_BUTTON) Initialization parameters.
-  */
-const MX_GPIOParams_t MX_GPIO_UBInitParams =
-{
-  MX_GPIO_PC13_Init,
-  EXTI13_IRQn,
-  GPIO_PIN_13,
-  GPIOC
-};
-
-/**
   * LED Red Initialization parameters.
   */
 const MX_GPIOParams_t MX_GPIO_LEDRedInitParams =
@@ -106,31 +95,9 @@ const MX_GPIOParams_t MX_GPIO_LEDBlueInitParams =
 const MX_GPIOParams_t MX_GPIO_INT1_DHCXInitParams =
 {
   MX_GPIO_PE9_Init,
-  INT1_DHCX_EXTI_IRQn, /*!< NOT USED */
+  INT1_DHCX_EXTI_IRQn,
   INT1_DHCX_Pin,
   INT1_DHCX_GPIO_Port
-};
-
-/**
-  * (INT2_DHCX) Initialization parameters.
-  */
-const MX_GPIOParams_t MX_GPIO_INT2_DHCXInitParams =
-{
-  MX_GPIO_PE11_Init,
-  INT2_DHCX_EXTI_IRQn, /*!< NOT USED. Must be INT2_DHCX_EXTI_IRQn */
-  INT2_DHCX_Pin,
-  INT2_DHCX_GPIO_Port
-};
-
-/**
-  * (INT1_DLPC) Initialization parameters.
-  */
-const MX_GPIOParams_t MX_GPIO_INT1_DLPCInitParams =
-{
-  MX_GPIO_PB0_Init,
-  INT1_DLPC_EXTI_IRQn, /*!< NOT USED */
-  INT1_DLPC_Pin,
-  INT1_DLPC_GPIO_Port
 };
 
 /**
@@ -139,7 +106,7 @@ const MX_GPIOParams_t MX_GPIO_INT1_DLPCInitParams =
 const MX_GPIOParams_t MX_GPIO_INT2_DLPCInitParams =
 {
   MX_GPIO_PC1_Init,
-  INT2_DLPC_EXTI_IRQn, /*!< NOT USED. Must be INT2_DHCX_EXTI_IRQn */
+  INT2_DLPC_EXTI_IRQn,
   INT2_DLPC_Pin,
   INT2_DLPC_GPIO_Port
 };
@@ -150,7 +117,7 @@ const MX_GPIOParams_t MX_GPIO_INT2_DLPCInitParams =
 const MX_GPIOParams_t MX_GPIO_DRDY_MDCInitParams =
 {
   MX_GPIO_PC3_Init,
-  DRDY_MDC_EXTI_IRQn, /*!< NOT USED. Must be INT2_DHCX_EXTI_IRQn */
+  DRDY_MDC_EXTI_IRQn,
   DRDY_MDC_Pin,
   DRDY_MDC_GPIO_Port
 };

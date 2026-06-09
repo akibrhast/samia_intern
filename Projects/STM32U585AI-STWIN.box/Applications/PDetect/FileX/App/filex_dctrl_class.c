@@ -203,8 +203,11 @@ sys_error_code_t filex_dctrl_vtblStream_disable(IStream_t *_this)
   sys_error_code_t res = SYS_NO_ERROR_CODE;
   filex_dctrl_class_t *obj = (filex_dctrl_class_t *) _this;
 
-  /* Close the SD disk driver */
-  fx_media_close(&obj->sdio_disk);
+  /* Close the SD disk driver (if opened) */
+  if (SD_IsDetected() && TX_SUCCESS == obj->fx_opened)
+  {
+    fx_media_close(&obj->sdio_disk);
+  }
   obj->fx_opened = FX_INVALID_STATE;
   obj->fx_stream_enabled = false;
 

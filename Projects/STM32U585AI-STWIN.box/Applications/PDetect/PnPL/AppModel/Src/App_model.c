@@ -119,7 +119,7 @@ uint8_t __stream_control(bool status)
           }
           else
           {
-            /* TODO: add support for other ISENSOR_CLASS */
+            /* add support for other ISENSOR_CLASS if needed */
           }
 
           __sc_set_sd_stream_params(i);

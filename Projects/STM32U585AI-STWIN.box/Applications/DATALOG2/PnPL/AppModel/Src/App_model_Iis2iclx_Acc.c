@@ -332,6 +332,10 @@ uint8_t iis2iclx_acc_set_odr(pnpl_iis2iclx_acc_odr_t enum_id, char **response_me
   ret = SMSensorSetODR(iis2iclx_acc_model.id, value);
   if (ret == SYS_NO_ERROR_CODE)
   {
+    if (app_model.iis2iclx_mlc_ucf_valid == true)
+    {
+      app_model.iis2iclx_mlc_ucf_valid = false;
+    }
 #if (HSD_USE_DUMMY_DATA != 1)
     iis2iclx_acc_set_samples_per_ts((int32_t)value, NULL);
 #endif
@@ -378,6 +382,13 @@ uint8_t iis2iclx_acc_set_fs(pnpl_iis2iclx_acc_fs_t enum_id, char **response_mess
       return PNPL_BASE_ERROR_CODE;
   }
   ret = SMSensorSetFS(iis2iclx_acc_model.id, value);
+  if (ret == SYS_NO_ERROR_CODE)
+  {
+    if (app_model.iis2iclx_mlc_ucf_valid == true)
+    {
+      app_model.iis2iclx_mlc_ucf_valid = false;
+    }
+  }
 
   float_t sensitivity = 0.0f;
   iis2iclx_acc_get_sensitivity(&sensitivity);
@@ -403,6 +414,10 @@ uint8_t iis2iclx_acc_set_enable(bool value, char **response_message)
   }
   if (ret == SYS_NO_ERROR_CODE)
   {
+    if (app_model.iis2iclx_mlc_ucf_valid == true)
+    {
+      app_model.iis2iclx_mlc_ucf_valid = false;
+    }
     if (__stream_control(true) != PNPL_NO_ERROR_CODE)
     {
       if (response_message != NULL)

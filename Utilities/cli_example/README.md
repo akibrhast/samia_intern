@@ -23,3 +23,5 @@ The application starts, and the command line appears, showing information about 
 Press any key to start the datalogging. Application will stop automatically if a timeout was set
 In any case, you can stop the data acquisition by pressing the ESC button
 The application will create a YYYYMMDD_HH_MM_SS (i.e., 20200128_16_33_00) folder containing the raw data and the JSON configuration file.
+
+**cli_example is deprecated and in NRND state. It is Not Recommended for New Design. This is the last update and no further updates are planned. Please, consider moving to [STDATALOG_PYSDK](https://github.com/STMicroelectronics/stdatalog-pysdk).**

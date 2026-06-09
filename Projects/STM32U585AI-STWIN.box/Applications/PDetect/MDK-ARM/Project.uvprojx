@@ -975,6 +975,11 @@
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</FilePath>
             </File>
             <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
+            </File>
+            <File>
               <FileName>I2CBusTask.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusTask.c</FilePath>
@@ -4683,6 +4688,11 @@
               <FilePath>..\Core\Src\tx_initialize_low_level.s</FilePath>
             </File>
             <File>
+              <FileName>dfu_boot.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\dfu_boot.c</FilePath>
+            </File>
+            <File>
               <FileName>syscalls.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\syscalls.c</FilePath>
@@ -5146,6 +5156,11 @@
               <FileName>I2CBusIF.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</FilePath>
+            </File>
+            <File>
+              <FileName>I3CBusIF.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</FilePath>
             </File>
             <File>
               <FileName>I2CBusTask.c</FileName>

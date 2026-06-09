@@ -26,6 +26,13 @@ extern "C" {
 #include "ABusIF.h"
 #include "tx_api.h"
 
+#ifndef I2C_MEMADD_SIZE_8BIT
+#define I2C_MEMADD_SIZE_8BIT            (0x00000001U)
+#endif
+
+#ifndef I2C_MEMADD_SIZE_16BIT
+#define I2C_MEMADD_SIZE_16BIT           (0x00000002U)
+#endif
 
 /**
   * Create a type name for _I2CBusIF.

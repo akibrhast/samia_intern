@@ -548,8 +548,7 @@ sys_error_code_t STTS751Task_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
         /* Deactivate the sensor */
         stts751_temp_data_rate_set(p_sensor_drv, STTS751_TEMP_ODR_OFF);
       }
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_fifo_timer);
@@ -558,6 +557,8 @@ sys_error_code_t STTS751Task_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         STTS751TaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("STTS751: -> STATE1\r\n"));
   }

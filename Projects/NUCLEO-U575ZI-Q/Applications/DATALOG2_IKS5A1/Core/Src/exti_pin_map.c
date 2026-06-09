@@ -30,6 +30,7 @@ void IIS2MDCTask_EXTI_Callback(uint16_t nPin);
 void INT2_ISM330IS_EXTI_Callback(uint16_t Pin);
 void ISM6HG256XTask_EXTI_Callback(uint16_t Pin);
 void INT2_HG256X_EXTI_Callback(uint16_t Pin);
+void IIS3DWB10ISTask_EXTI_Callback(uint16_t Pin);
 /* External variables */
 /**********************/
 
@@ -43,6 +44,8 @@ EXTI_P2F_MAP_ENTRY(GPIO_PIN_0, IIS2MDCTask_EXTI_Callback)
 EXTI_P2F_MAP_ENTRY(GPIO_PIN_11, ISM6HG256XTask_EXTI_Callback)
 EXTI_P2F_MAP_ENTRY(GPIO_PIN_13, INT2_ISM330IS_EXTI_Callback)
 EXTI_P2F_MAP_ENTRY(GPIO_PIN_14, INT2_HG256X_EXTI_Callback)
+EXTI_P2F_MAP_ENTRY(GPIO_PIN_9, IIS3DWB10ISTask_EXTI_Callback)
+EXTI_P2F_MAP_ENTRY(GPIO_PIN_15, IIS3DWB10ISTask_EXTI_Callback)
 //EXTI_P2F_MAP_ENTRY(GPIO_PIN_15, Util_USR_EXTI_Callback)
 
 EXTI_END_P2F_MAP()

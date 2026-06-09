@@ -71,6 +71,11 @@ struct _LIS2DU12Task
   const MX_GPIOParams_t *pCSConfig;
 
   /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
+  /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
   ABusIF *p_sensor_bus_if;
@@ -171,7 +176,7 @@ ISourceObservable *LIS2DU12TaskGetAccSensorIF(LIS2DU12Task *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag);
 
 /**
   * Call the default ::LIS2DU12TaskAlloc and then it overwrite sensor name
@@ -184,7 +189,8 @@ AManagedTaskEx *LIS2DU12TaskAlloc(const void *pIRQConfig, const void *pCSConfig)
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name);
+AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                         const char *p_name);
 
 /**
   * Allocate an instance of ::LIS2DU12Task in a memory block specified by the application.
@@ -206,7 +212,8 @@ AManagedTaskEx *LIS2DU12TaskAllocSetName(const void *pIRQConfig, const void *pCS
   * @return a pointer to the generic object ::AManagedTaskEx_t if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig);
+AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                        boolean_t i3c_flag);
 
 /**
   * Call the default ::LIS2DU12TaskAlloc and then it overwrite sensor name
@@ -227,7 +234,7 @@ AManagedTaskEx *LIS2DU12TaskStaticAlloc(void *p_mem_block, const void *pIRQConfi
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LIS2DU12TaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                               const char *p_name);
+                                               boolean_t i3c_flag, const char *p_name);
 /**
   * Get the Bus interface for the sensor task.
   *

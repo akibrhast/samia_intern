@@ -6,8 +6,6 @@
   * @date    Jan 13, 2017
   * @brief   This file declare the Managed task Interface.
   *
-  * TODO - STF - what is a managed task?
-  *
   ******************************************************************************
   * @attention
   *

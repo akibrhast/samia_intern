@@ -56,6 +56,10 @@
 #define LPS22DF_TASK_CFG_MAX_INSTANCES_COUNT      1
 #endif
 
+#ifndef LPS22DF_DYNAMIC_ADDR
+#define LPS22DF_DYNAMIC_ADDR                     0
+#endif
+
 #define SYS_DEBUGF(level, message)                SYS_DEBUGF3(SYS_DBG_LPS22DF, level, message)
 
 #ifndef LPS22DF_TASK_CFG_I2C_ADDRESS
@@ -280,7 +284,7 @@ ISourceObservable *LPS22DFTaskGetPressSensorIF(LPS22DFTask *_this)
   return (ISourceObservable *) & (_this->sensor_if);
 }
 
-AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag)
 {
   LPS22DFTask *p_new_obj = SysAlloc(sizeof(LPS22DFTask));
 
@@ -295,6 +299,7 @@ AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
 
     p_new_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_new_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_new_obj->i3c_flag = i3c_flag;
 
     strcpy(p_new_obj->sensor_status.p_name, sTheClass.class_descriptor.p_name);
   }
@@ -302,9 +307,10 @@ AManagedTaskEx *LPS22DFTaskAlloc(const void *pIRQConfig, const void *pCSConfig)
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, const char *p_name)
+AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSConfig, boolean_t i3c_flag,
+                                        const char *p_name)
 {
-  LPS22DFTask *p_new_obj = (LPS22DFTask *)LPS22DFTaskAlloc(pIRQConfig, pCSConfig);
+  LPS22DFTask *p_new_obj = (LPS22DFTask *)LPS22DFTaskAlloc(pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_new_obj->sensor_status.p_name, p_name);
@@ -312,7 +318,8 @@ AManagedTaskEx *LPS22DFTaskAllocSetName(const void *pIRQConfig, const void *pCSC
   return (AManagedTaskEx *) p_new_obj;
 }
 
-AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig)
+AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
+                                       boolean_t i3c_flag)
 {
   LPS22DFTask *p_obj = (LPS22DFTask *)p_mem_block;
 
@@ -328,15 +335,16 @@ AManagedTaskEx *LPS22DFTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig
 
     p_obj->pIRQConfig = (MX_GPIOParams_t *) pIRQConfig;
     p_obj->pCSConfig = (MX_GPIOParams_t *) pCSConfig;
+    p_obj->i3c_flag = i3c_flag;
   }
 
   return (AManagedTaskEx *)p_obj;
 }
 
 AManagedTaskEx *LPS22DFTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pCSConfig,
-                                              const char *p_name)
+                                              boolean_t i3c_flag, const char *p_name)
 {
-  LPS22DFTask *p_obj = (LPS22DFTask *)LPS22DFTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig);
+  LPS22DFTask *p_obj = (LPS22DFTask *)LPS22DFTaskStaticAlloc(p_mem_block, pIRQConfig, pCSConfig, i3c_flag);
 
   /* Overwrite default name with the one selected by the application */
   strcpy(p_obj->sensor_status.p_name, p_name);
@@ -418,6 +426,15 @@ sys_error_code_t LPS22DFTask_vtblOnCreateTask(AManagedTask *_this, tx_entry_func
   if (p_obj->pCSConfig != NULL)
   {
     p_obj->p_sensor_bus_if = SPIBusIFAlloc(LPS22DF_ID, p_obj->pCSConfig->port, (uint16_t) p_obj->pCSConfig->pin, 0);
+    if (p_obj->p_sensor_bus_if == NULL)
+    {
+      res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
+      SYS_SET_SERVICE_LEVEL_ERROR_CODE(res);
+    }
+  }
+  else if (p_obj->i3c_flag)
+  {
+    p_obj->p_sensor_bus_if = I3CBusIFAlloc(LPS22DF_ID, (uint8_t)(LPS22DF_TASK_CFG_I2C_ADDRESS >> 1), LPS22DF_DYNAMIC_ADDR, 0);
     if (p_obj->p_sensor_bus_if == NULL)
     {
       res = SYS_TASK_HEAP_OUT_OF_MEMORY_ERROR_CODE;
@@ -548,14 +565,10 @@ sys_error_code_t LPS22DFTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
         lps22df_mode_get(p_sensor_drv, &val);
         val.odr = LPS22DF_ONE_SHOT;
         lps22df_mode_set(p_sensor_drv, &val);
-
-        lps22df_fifo_md_t fifo_md;
-        fifo_md.watermark = 1;
-        fifo_md.operation = LPS22DF_BYPASS;
-        lps22df_fifo_mode_set(p_sensor_drv, &fifo_md);
+        lps22df_fifo_mode_set(p_sensor_drv, LPS22DF_BYPASS);
+        lps22df_fifo_watermark_set(p_sensor_drv, 1);
       }
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_fifo_timer);
@@ -564,6 +577,8 @@ sys_error_code_t LPS22DFTask_vtblDoEnterPowerMode(AManagedTask *_this, const EPo
       {
         LPS22DFTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("LPS22DF: -> STATE1\r\n"));
@@ -1208,14 +1223,23 @@ static sys_error_code_t LPS22DFTaskSensorInit(LPS22DFTask *_this)
   int32_t ret_val = 0;
   lps22df_pin_int_route_t int_route;
 
-  /* Set bdu and if_inc recommended for driver usage */
-  lps22df_init_set(p_sensor_drv, LPS22DF_DRV_RDY);
-
   /* Select bus interface */
   lps22df_bus_mode_t bus_mode;
-  bus_mode.interface = LPS22DF_SEL_BY_HW;
-  bus_mode.filter = LPS22DF_FILTER_AUTO;
+  lps22df_bus_mode_get(p_sensor_drv, &bus_mode);
+  if (_this->i3c_flag)
+  {
+    bus_mode.interface = LPS22DF_INT_PIN_ON_I3C;
+    bus_mode.filter = LPS22DF_FILTER_ALWAYS_ON;
+  }
+  else
+  {
+    bus_mode.interface = LPS22DF_SEL_BY_HW;
+    bus_mode.filter = LPS22DF_FILTER_AUTO;
+  }
   lps22df_bus_mode_set(p_sensor_drv, &bus_mode);
+
+  /* Set bdu and if_inc recommended for driver usage */
+  lps22df_init_set(p_sensor_drv, LPS22DF_DRV_RDY);
 
   /* Set Output Data Rate in Power Down */
   /* Configure basic parameters */
@@ -1442,6 +1466,9 @@ static sys_error_code_t LPS22DFTaskSensorSetODR(LPS22DFTask *_this, SMMessage re
   float_t odr = (float_t) report.sensorMessage.fParam;
   uint8_t id = report.sensorMessage.nSensorId;
 
+  lps22df_id_t id_reg;
+  lps22df_id_get(p_sensor_drv, &id_reg);
+
   lps22df_md_t md;
   lps22df_mode_get(p_sensor_drv, &md);
 
@@ -1516,7 +1543,6 @@ static sys_error_code_t LPS22DFTaskSensorSetFifoWM(LPS22DFTask *_this, SMMessage
 {
   assert_param(_this != NULL);
   sys_error_code_t res = SYS_NO_ERROR_CODE;
-  lps22df_fifo_md_t fifo_md;
 
   stmdev_ctx_t *p_sensor_drv = (stmdev_ctx_t *) &_this->p_sensor_bus_if->m_xConnector;
   uint16_t lps22df_wtm_level = (uint16_t)report.sensorMessage.nParam;
@@ -1527,10 +1553,8 @@ static sys_error_code_t LPS22DFTaskSensorSetFifoWM(LPS22DFTask *_this, SMMessage
   }
   _this->samples_per_it = lps22df_wtm_level;
 
-  fifo_md.watermark = _this->samples_per_it;
-  fifo_md.operation = LPS22DF_STREAM;
-
-  lps22df_fifo_mode_set(p_sensor_drv, &fifo_md);
+  lps22df_fifo_mode_set(p_sensor_drv, LPS22DF_STREAM);
+  lps22df_fifo_watermark_set(p_sensor_drv, _this->samples_per_it);
 
   return res;
 }
@@ -1639,13 +1663,11 @@ static void LPS22DFTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

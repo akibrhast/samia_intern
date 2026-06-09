@@ -794,8 +794,7 @@ sys_error_code_t ISM330DHCXTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -812,6 +811,8 @@ sys_error_code_t ISM330DHCXTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         ISM330DHCXTaskConfigureMLCPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
       memset(p_obj->p_mlc_sensor_data_buff, 0, sizeof(p_obj->p_mlc_sensor_data_buff));
     }
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("ISM330DHCX: -> STATE1\r\n"));
@@ -1942,15 +1943,8 @@ static sys_error_code_t ISM330DHCXTaskSensorInit(ISM330DHCXTask *_this)
   ism330dhcx_odr_g_t ism330dhcx_odr_g = ISM330DHCX_GY_ODR_OFF;
   ism330dhcx_bdr_gy_t ism330dhcx_bdr_gy = ISM330DHCX_GY_NOT_BATCHED;
   int32_t ret_val = 0;
-
-  ism330dhcx_pin_int1_route_t int1_route =
-  {
-    0
-  };
-  ism330dhcx_pin_int2_route_t int2_route =
-  {
-    0
-  };
+  ism330dhcx_pin_int1_route_t int1_route = {0};
+  ism330dhcx_pin_int2_route_t int2_route = {0};
 
   ret_val = ism330dhcx_reset_set(p_sensor_drv, 1);
   do
@@ -2245,8 +2239,6 @@ static sys_error_code_t ISM330DHCXTaskSensorInit(ISM330DHCXTask *_this)
     SMMessage report;
     report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
     report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
-
-    // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
     if (TX_SUCCESS != tx_queue_send(&_this->in_queue, &report, TX_NO_WAIT))
     {
       /* unable to send the report. Signal the error */
@@ -3055,13 +3047,11 @@ static void ISM330DHCXTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 static void ISM330DHCXTaskMLCTimerCallbackFunction(ULONG param)
@@ -3071,13 +3061,11 @@ static void ISM330DHCXTaskMLCTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY_MLC;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     /* unable to send the report. Signal the error */
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

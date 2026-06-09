@@ -48,7 +48,7 @@
 #define SC_DL2_PROTOCOL_COUNTER_SIZE     4U
 #define SC_DL2_PROTOCOL_TIMESTAMP_SIZE   8U
 /* Max DPS for USB */
-#define SC_USB_DPS_MAX                7000U
+#define SC_USB_DPS_MAX                16000U
 /* Under this limit the stream is considered "slow" */
 #define SC_USB_SLOW_ODR_LIMIT_HZ      20.0f
 /* Maximum time between two consecutive stream packets */
@@ -109,7 +109,7 @@ uint8_t __stream_control(bool status)
           }
           else
           {
-            /* TODO: add support for other ISENSOR_CLASS */
+            /* add support for other ISENSOR_CLASS if needed */
           }
 
           __sc_set_sd_stream_params(i);

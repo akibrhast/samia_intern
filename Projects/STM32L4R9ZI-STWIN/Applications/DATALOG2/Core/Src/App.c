@@ -160,7 +160,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sIIS3DWBObj = IIS3DWBTaskAlloc(&MX_GPIO_INT1_DWBInitParams, &MX_GPIO_CS_DWBInitParams);
   sIIS2MDCObj = IIS2MDCTaskAlloc(&MX_GPIO_INT_MAGInitParams, NULL);
   sISM330DHCXObj = ISM330DHCXTaskAlloc(&MX_GPIO_INT1_DHCXInitParams, &MX_GPIO_INT2_DHCXInitParams, &MX_GPIO_CS_DHCXInitParams);
-  sLPS22HHObj = LPS22HHTaskAlloc(NULL, NULL);
+  sLPS22HHObj = LPS22HHTaskAlloc(NULL, NULL, false);
   sIIS2DHObj = IIS2DHTaskAlloc(NULL, &MX_GPIO_CS_DHInitParams);
   sSTTS751Obj = STTS751TaskAlloc(NULL, NULL);
   sIMP23ABSUObj = IMP23ABSUTaskAlloc(&MX_DFSDMCH0F1InitParams, &MX_ADC1InitParams);

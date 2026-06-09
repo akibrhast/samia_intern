@@ -140,7 +140,7 @@ sys_error_code_t SysLoadApplicationContext(ApplicationContext *pAppContext)
   sI2CBusObj = I2CBusTaskAlloc(&MX_I2C2InitParams);
   sISM330DHCXObj = ISM330DHCXTaskAlloc(&MX_GPIO_PE11InitParams, NULL, NULL);
   sIIS2MDCObj = IIS2MDCTaskAlloc(&MX_GPIO_PD10InitParams, NULL);
-  sLPS22HHObj = LPS22HHTaskAlloc(&MX_GPIO_PG2InitParams, NULL);
+  sLPS22HHObj = LPS22HHTaskAlloc(&MX_GPIO_PG2InitParams, NULL, false);
   sMP23DB01HPObj = MP23DB01HPTaskAlloc(&MX_ADF1InitParams);
 
 

@@ -541,8 +541,7 @@ sys_error_code_t DUMMYSENSORTask_vtblDoEnterPowerMode(AManagedTask *_this, const
       p_obj->samples_per_it = 0;
       p_obj->first_data_ready = 0;
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -551,6 +550,8 @@ sys_error_code_t DUMMYSENSORTask_vtblDoEnterPowerMode(AManagedTask *_this, const
       {
         DUMMYSENSORTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("DUMMYSENSOR: -> STATE1\r\n"));

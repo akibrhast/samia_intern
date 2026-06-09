@@ -6,8 +6,6 @@
   * @date    Jan 13, 2017
   * @brief
   *
-  * TODO - insert here the file description
-  *
   ******************************************************************************
   * @attention
   *

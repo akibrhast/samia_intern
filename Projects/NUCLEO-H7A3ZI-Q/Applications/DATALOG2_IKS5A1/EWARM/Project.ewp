@@ -2465,6 +2465,9 @@
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusIF.c</name>
                     </file>
                     <file>
+                        <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I3CBusIF.c</name>
+                    </file>
+                    <file>
                         <name>$PROJ_DIR$\..\..\..\..\eLooM_Components\SensorManager\Src\I2CBusTask.c</name>
                     </file>
                     <file>

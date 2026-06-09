@@ -79,6 +79,11 @@ struct _LSM6DSV320XTask
   const MX_GPIOParams_t *pCSConfig;
 
   /**
+    * I3C flag
+    */
+  boolean_t i3c_flag;
+
+  /**
     * Bus IF object used to connect the sensor task to the specific bus.
     */
   ABusIF *p_sensor_bus_if;
@@ -318,6 +323,12 @@ struct _LSM6DSV320XTask
     * Internal model (FW) is in sync with the component (HW registers)
     */
   bool sync;
+
+  /*
+    * First data ready flag: fist data must be discarded, see sensor AN
+    * */
+  uint16_t first_data_ready;
+  uint16_t first_data_ready_threshold;
 };
 
 // Public API declaration
@@ -375,7 +386,8 @@ ISensorLL_t *LSM6DSV320XTaskGetSensorLLIF(LSM6DSV320XTask *_this);
   * @return a pointer to the generic object ::AManagedTaskEx if success,
   * or NULL if out of memory error occurs.
   */
-AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig);
+AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
+                                     boolean_t i3c_flag);
 
 /**
   * Call the default ::LSM6DSV320XTaskAlloc and then it overwrite sensor name
@@ -391,7 +403,7 @@ AManagedTaskEx *LSM6DSV320XTaskAlloc(const void *pIRQConfig, const void *pMLCCon
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LSM6DSV320XTaskAllocSetName(const void *pIRQConfig, const void *pMLCConfig, const void *pCSConfig,
-                                            const char *p_name);
+                                            boolean_t i3c_flag, const char *p_name);
 
 /**
   * Allocate an instance of ::LSM6DSV320XTask in a memory block specified by the application.
@@ -416,7 +428,7 @@ AManagedTaskEx *LSM6DSV320XTaskAllocSetName(const void *pIRQConfig, const void *
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LSM6DSV320XTaskStaticAlloc(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                           const void *pCSConfig);
+                                           const void *pCSConfig, boolean_t i3c_flag);
 
 /**
   * Call the default ::LSM6DSV320XTaskAlloc and then it overwrite sensor name
@@ -439,7 +451,7 @@ AManagedTaskEx *LSM6DSV320XTaskStaticAlloc(void *p_mem_block, const void *pIRQCo
   * or NULL if out of memory error occurs.
   */
 AManagedTaskEx *LSM6DSV320XTaskStaticAllocSetName(void *p_mem_block, const void *pIRQConfig, const void *pMLCConfig,
-                                                  const void *pCSConfig,
+                                                  const void *pCSConfig, boolean_t i3c_flag,
                                                   const char *p_name);
 
 /**

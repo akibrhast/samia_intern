@@ -28,6 +28,7 @@ uint16_t SMMessageGetSize(uint8_t message_id)
   switch (message_id)
   {
     case SM_MESSAGE_ID_DATA_READY:
+    case SM_MESSAGE_ID_DATA_READY_TDM:
       nSize = sizeof(struct sensorDataReadyMessage_t);
       break;
 
@@ -51,6 +52,11 @@ uint16_t SMMessageGetSize(uint8_t message_id)
     case SM_MESSAGE_ID_I2C_BUS_READ:
     case SM_MESSAGE_ID_I2C_BUS_WRITE:
       nSize = sizeof(struct i2cIOMessage_t);
+      break;
+
+    case SM_MESSAGE_ID_I3C_BUS_READ:
+    case SM_MESSAGE_ID_I3C_BUS_WRITE:
+      nSize = sizeof(struct i3cIOMessage_t);
       break;
 
     default:

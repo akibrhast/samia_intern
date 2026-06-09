@@ -587,8 +587,7 @@ sys_error_code_t VL53L8CXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
         vl53l8cx_stop_ranging(&p_obj->tof_driver_if);
       }
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -597,6 +596,8 @@ sys_error_code_t VL53L8CXTask_vtblDoEnterPowerMode(AManagedTask *_this, const EP
       {
         VL53L8CXTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("VL53L8CX: -> STATE1\r\n"));
@@ -731,8 +732,6 @@ sys_error_code_t VL53L8CXTask_vtblTofGetProfile(ISensorRanging_t *_this, Profile
   assert_param(_this != NULL);
   VL53L8CXTask *p_if_owner = (VL53L8CXTask *)((uint32_t) _this - offsetof(VL53L8CXTask, sensor_if));
   sys_error_code_t res = SYS_NO_ERROR_CODE;
-
-  /* TODO Needed getter from PID? */
   *p_config = p_if_owner->sensor_status.type.ranging.profile_config;
 
   return res;
@@ -743,8 +742,6 @@ sys_error_code_t VL53L8CXTask_vtblTofGetIT(ISensorRanging_t *_this, ITConfig_t *
   assert_param(_this != NULL);
   VL53L8CXTask *p_if_owner = (VL53L8CXTask *)((uint32_t) _this - offsetof(VL53L8CXTask, sensor_if));
   sys_error_code_t res = SYS_NO_ERROR_CODE;
-
-  /* TODO Needed getter from PID? */
   *p_it_config = p_if_owner->sensor_status.type.ranging.it_config;
 
   return res;
@@ -763,8 +760,6 @@ uint32_t VL53L8CXTask_vtblTofGetPowerMode(ISensorRanging_t *_this)
 {
   assert_param(_this != NULL);
   VL53L8CXTask *p_if_owner = (VL53L8CXTask *)((uint32_t) _this - offsetof(VL53L8CXTask, sensor_if));
-
-  /* TODO Needed getter from PID? */
   uint32_t res = p_if_owner->sensor_status.type.ranging.power_mode;
 
   return res;

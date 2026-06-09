@@ -85,6 +85,7 @@ void DatalogApp_Task_command_response_cb(char *response_msg, uint32_t size);
 
 uint8_t DatalogAppTask_SetMLCIF(AManagedTask *task_obj);
 uint8_t DatalogAppTask_SetExtMLCIF(AManagedTask *task_obj);
+uint8_t DatalogAppTask_load_iis2dulpx_ucf_vtbl(const char *ucf_data, int32_t ucf_size);
 uint8_t DatalogAppTask_load_ism330dhcx_ucf_vtbl(const char *ucf_data, int32_t ucf_size);
 uint8_t DatalogAppTask_load_ism330bx_ucf_vtbl(const char *ucf_data, int32_t ucf_size);
 uint8_t DatalogAppTask_load_ism6hg256x_ucf_vtbl(const char *ucf_data, int32_t ucf_size);

@@ -54,8 +54,8 @@ extern "C" {
 
 #define ELOOM_MAGIC_NUMBER                     (12974U)
 #define ELOOM_API_VERSION_MAJOR                (0x03U)
-#define ELOOM_API_VERSION_MINOR                (0x04U)
-#define ELOOM_API_VERSION_PATCH                (0x02U)
+#define ELOOM_API_VERSION_MINOR                (0x06U)
+#define ELOOM_API_VERSION_PATCH                (0x00U)
 #define ELOOM_API_VERSION                      (0x00FFFFFFU &\
                                                 ((ELOOM_API_VERSION_MAJOR<<16) | (ELOOM_API_VERSION_MINOR<<8) | (ELOOM_API_VERSION_PATCH)))
 
@@ -163,7 +163,6 @@ IBoot *SysGetBootIF(void);
   * Get the Application Power Mode Helper.  This function is used by the system during the application startup
   * in order to get an application specific object that implements the ::IAppPowerModeHelper. The default
   * implementation is defined as \a weak so the application can provide its specific implementation.
-  * For more information about the default implementation see TODO: STF ...
   *
   * @return a pointer to an IAppPowerModeHelper object.
   */

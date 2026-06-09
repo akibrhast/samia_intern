@@ -36,16 +36,20 @@ extern "C" {
 #include "SPIBusIF.h"
 #include "I2CBusIF.h"
 #include "I2CBSBusIF.h"
+#include "I3CBusIF.h"
 
 #define SM_MESSAGE_ID_DATA_READY                0x01  ///< Sensor data ready report
 #define SM_MESSAGE_ID_DATA_READY_MLC            0x02  ///< MLC data ready report
 #define SM_MESSAGE_ID_DATA_READY_ISPU           0x03  ///< ISPU data ready report
+#define SM_MESSAGE_ID_DATA_READY_TDM            0x0C  ///< TDM data ready report
 #define SM_MESSAGE_ID_SENSOR_CMD                0x04  ///< Sensor command encapsulated in a message.
 #define SM_MESSAGE_ID_SD_CMD                    0x05  ///< SDCARD command encapsulated in a message.
 #define SM_MESSAGE_ID_SPI_BUS_READ              0x06  ///< Command to read from the SPI bus
 #define SM_MESSAGE_ID_SPI_BUS_WRITE             0x07  ///< Command to write in the SPI bus.
 #define SM_MESSAGE_ID_I2C_BUS_READ              0x08  ///< Command to read from the I2C bus
 #define SM_MESSAGE_ID_I2C_BUS_WRITE             0x09  ///< Command to write in the I2C bus.
+#define SM_MESSAGE_ID_I3C_BUS_READ              0x0A  ///< Command to read from the I3C bus
+#define SM_MESSAGE_ID_I3C_BUS_WRITE             0x0B  ///< Command to write in the I3C bus.
 #define SM_MESSAGE_ID_FORCE_STEP                0xFE  ///< Special ID used by the INIT task to force the execution of ManagedTaskEx step.
 
 
@@ -104,7 +108,7 @@ typedef union _SMMessage
   } spiIOMessage;
 
   //--------------------------------------------------------------------------------
-  //  I2C Read / Write command 08 09 (MCU --> MCU) - SPI Bus command
+  //  I2C Read / Write command 08 09 (MCU --> MCU) - I2C Bus command
   //--------------------------------------------------------------------------------
 
   struct i2cIOMessage_t
@@ -116,6 +120,19 @@ typedef union _SMMessage
     uint8_t *pnData;
     I2CBusIF *pxSensor;
   } i2cIOMessage;
+
+  //--------------------------------------------------------------------------------
+  //  I3C Read / Write command 08 09 (MCU --> MCU) - I3C Bus command
+  //--------------------------------------------------------------------------------
+
+  struct i3cIOMessage_t
+  {
+    uint8_t messageId;                                // Report ID = 0x0A / 0x0B (10 / 11)
+    uint16_t nRegAddr;
+    uint16_t nDataSize;
+    uint8_t *pnData;
+    I3CBusIF *pxSensor;
+  } i3cIOMessage;
 
   //--------------------------------------------------------------------------------
   //  internalReport (MCU)

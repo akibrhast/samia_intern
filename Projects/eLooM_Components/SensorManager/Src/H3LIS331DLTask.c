@@ -555,8 +555,7 @@ sys_error_code_t H3LIS331DLTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       /* Deactivate the sensor */
       h3lis331dl_data_rate_set(p_sensor_drv, H3LIS331DL_ODR_OFF);
 
-      /* Empty the task queue and disable INT or timer */
-      tx_queue_flush(&p_obj->in_queue);
+      /* Disable INT/timer first to stop producing new queue events during teardown. */
       if (p_obj->pIRQConfig == NULL)
       {
         tx_timer_deactivate(&p_obj->read_timer);
@@ -565,6 +564,8 @@ sys_error_code_t H3LIS331DLTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       {
         H3LIS331DLTaskConfigureIrqPin(p_obj, TRUE);
       }
+      /* Drop stale reports generated before the stop sequence completed. */
+      tx_queue_flush(&p_obj->in_queue);
     }
 
     SYS_DEBUGF(SYS_DBG_LEVEL_VERBOSE, ("H3LIS331DL: -> STATE1\r\n"));
@@ -770,7 +771,7 @@ sys_error_code_t H3LIS331DLTask_vtblSensorSetODR(ISensorMems_t *_this, float_t o
       .sensorMessage.messageId = SM_MESSAGE_ID_SENSOR_CMD,
       .sensorMessage.nCmdID = SENSOR_CMD_ID_SET_ODR,
       .sensorMessage.nSensorId = sensor_id,
-      .sensorMessage.nParam = (uint32_t) odr // EG: todo - what about float_t values?
+      .sensorMessage.fParam = (float_t) odr
     };
     res = H3LIS331DLTaskPostReportToBack(p_if_owner, (SMMessage *) &report);
   }
@@ -1634,13 +1635,11 @@ static void H3LIS331DLTaskTimerCallbackFunction(ULONG param)
   report.sensorDataReadyMessage.messageId = SM_MESSAGE_ID_DATA_READY;
   report.sensorDataReadyMessage.fTimestamp = SysTsGetTimestampF(SysGetTimestampSrv());
 
-  // if (sTaskObj.in_queue != NULL ) {//TODO: STF.Port - how to check if the queue has been initialized ??
   if (TX_SUCCESS != tx_queue_send(&p_obj->in_queue, &report, TX_NO_WAIT))
   {
     // unable to send the message. Signal the error
     sys_error_handler();
   }
-  //}
 }
 
 /* CubeMX integration */

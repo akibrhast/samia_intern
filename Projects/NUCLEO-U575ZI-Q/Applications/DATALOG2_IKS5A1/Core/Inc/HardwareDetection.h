@@ -26,8 +26,11 @@ extern "C" {
 
 #include "stdint.h"
 
+#define NO_IIS3DWB10IS 0U
+#define IIS3DWB10IS_DIL24 1U
+#define IIS3DWB10IS_FLEX 2U
 
-boolean_t HardwareDetection_Check_Ext_IIS3DWB10IS(void);
+uint8_t HardwareDetection_Check_Ext_IIS3DWB10IS(void);
 
 
 #ifdef __cplusplus

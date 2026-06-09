@@ -7,8 +7,6 @@
   *
   * @brief
   *
-  * TODO - insert here the file description
-  *
   ******************************************************************************
   * @attention
   *
