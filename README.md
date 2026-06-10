@@ -17,7 +17,7 @@ manage the board and sensor configurations, start/stop data acquisition on an SD
 and control data labeling.
 Sensor data can also be streamed using C++-based companion host software or stored onto 
 a microSD™ card.
-Via the host PC and Bluetooth® Low Energy app, users can configure **ISM330IS** and 
+Via the host PC and Bluetooth® Low Energy app, users can configure **IIS3DWB10IS**, **ISM330IS** and 
 **LSM6DSO16IS** intelligent sensor processing unit (ISPU) and machine learning core 
 unit (MLC) for:
 
@@ -45,6 +45,8 @@ The FP-SNS-DATALOG2 firmware can run on:
 - X-NUCLEO-IKS02A1 with **NUCLEO-H7A3ZI-Q**
 - X-NUCLEO-IKS4A1 with **NUCLEO-H7A3ZI-Q**
 - X-NUCLEO-IKS5A1 with **NUCLEO-H7A3ZI-Q**
+- X-NUCLEO-IKS4A1 with **NUCLEO-H563ZI**
+- X-NUCLEO-IKS5A1 with **NUCLEO-H563ZI**
 
 ST High Speed Datalog also natively supports add-ons for STEVAL-STWINBX1:
 
@@ -58,6 +60,7 @@ ST High Speed Datalog also natively supports add-ons for STEVAL-STWINBX1:
 - **STEVAL-MKI245KA**
 - **STEVAL-MKI246KA**
 - **STEVAL-MKI248KA**
+- **STEVAL-MKI253KA**
 
 It also supports add-ons for STEVAL-MKBOXPRO:
 
@@ -68,6 +71,7 @@ It also supports add-ons for STEVAL-MKBOXPRO:
 - **STEVAL-MKI240KA**
 - **STEVAL-MKI247A**
 - **STEVAL-MKI251A**
+- **STEVAL-MKI253KA**
 
 The **ST High Speed Datalog** is part of the **ST Edge AI suite**, which is an integrated 
 collection of software tools designed to facilitate the development and deployment of 
@@ -91,20 +95,28 @@ Here is the list of references to user documents:
 
 ## Known Limitations
 
-- To run properly DATALOG2 example on STWIN.box, before using those applications, WIFI module firwmare must be upgraded. The binary is available in Utilities/WiFi_module_upgrade folder.
-- mxchip driver generates a warning at compile time in CubeIDE and in Release configuration. It is not impacting the example performance nor generating issues, so you can ignore it. 
+- DATALOG2 example for **X-NUCLEO-IKS5A1** with **NUCLEO-U575ZI-Q** supports **STEVAL-MKI253KA** also, but HW modifications onto NUCLEO-U575ZI-Q are required to route SPI onto DIL24 connector:
+  - Change VDDIO from 1.8V to VDD level (removing SB39 and closing SB38) and select 3.3V as VDD (JP7)
+  - Select SPI on jumper JP6, JP8, JP9 and JP10 and open SB33 and SB36
+  - Select INT1 as USER_INT by selecting INT1 on USER (J2)
+
+- To run properly DATALOG2 example on **STWIN.box**, before using those applications, WIFI module firwmare must be upgraded. The binary is available in Utilities/WiFi_module_upgrade folder.
 - The application has been tested with the following SD cards, formatted FAT32 with 32 KB allocation table:
   - SanDisk 32 GB Ultra HC C10 U1 A1 (p/n SDSQUA4-032G-GN6MA)
   - Verbatim 16 GB Class 10 U1 (p/n 44082)
   - Transcend Premium 16 GB U1 C10 (TS16GUSDCU1)
   - Kingston 8 GB HC C4 (SDC4/8 GB)
+  
   For further details, please refer to [UM3106](https://www.st.com/resource/en/user_manual/um3106-getting-started-with-the-stm32cube-function-pack-for-the-stevalstwinbx1-evaluation-kit-for-high-speed-datalogging-and-ultrasound-processing-stmicroelectronics.pdf)
+  
+- **cli_example** utility, **UltrasoundFFT** firmware example for **STWIN.box**, and **DATALOG2** firmware examples for **X-NUCLEO-IKS02A1** with **NUCLEO-U575ZI-Q** and **X-NUCLEO-IKS02A1** with **NUCLEO-H7A3ZI-Q** are deprecated and in NRND state. They are Not Recommended for New Design. This is the last update and no further updates are planned.
+- mxchip driver generates a warning at compile time in CubeIDE and in Release configuration. It is not impacting the example performance nor generating issues, so you can ignore it. 
 
 ## Development Toolchains and Compilers
 
 -   IAR Embedded Workbench for ARM (EWARM) toolchain V9.60.3
 -   RealView Microcontroller Development Kit (MDK-ARM) toolchain V5.38
--   STM32CubeIDE v1.19
+-   STM32CubeIDE v2.1
 
 ## Supported Devices and Boards
 
@@ -123,6 +135,8 @@ Here is the list of references to user documents:
 - [X-NUCLEO-IKS02A1](https://www.st.com/en/ecosystems/x-nucleo-iks02a1.html) with [NUCLEO-H7A3ZI-Q](https://www.st.com/en/evaluation-tools/nucleo-h7a3zi-q.html)
 - [X-NUCLEO-IKS4A1](https://www.st.com/en/ecosystems/x-nucleo-iks4a1.html) with [NUCLEO-H7A3ZI-Q](https://www.st.com/en/evaluation-tools/nucleo-h7a3zi-q.html)
 - [X-NUCLEO-IKS5A1](https://www.st.com/en/ecosystems/x-nucleo-iks5a1.html) with [NUCLEO-H7A3ZI-Q](https://www.st.com/en/evaluation-tools/nucleo-h7a3zi-q.html)
+- [X-NUCLEO-IKS4A1](https://www.st.com/en/ecosystems/x-nucleo-iks4a1.html) with [NUCLEO-H563ZI](https://www.st.com/en/evaluation-tools/nucleo-h563zi.html)
+- [X-NUCLEO-IKS5A1](https://www.st.com/en/ecosystems/x-nucleo-iks5a1.html) with [NUCLEO-H563ZI](https://www.st.com/en/evaluation-tools/nucleo-h563zi.html)
 
 ## Backward Compatibility
 
