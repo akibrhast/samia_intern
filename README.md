@@ -95,7 +95,7 @@ Here is the list of references to user documents:
 
 ## Known Limitations
 
-- DATALOG2 example for **X-NUCLEO-IKS5A1** with **NUCLEO-U575ZI-Q** supports **STEVAL-MKI253KA** also, but HW modifications onto NUCLEO-U575ZI-Q are required to route SPI onto DIL24 connector:
+- DATALOG2 example for **X-NUCLEO-IKS5A1** with **NUCLEO-U575ZI-Q** supports **STEVAL-MKI253KA** also, but HW modifications onto X-NUCLEO-IKS5A1 are required to route SPI onto DIL24 connector:
   - Change VDDIO from 1.8V to VDD level (removing SB39 and closing SB38) and select 3.3V as VDD (JP7)
   - Select SPI on jumper JP6, JP8, JP9 and JP10 and open SB33 and SB36
   - Select INT1 as USER_INT by selecting INT1 on USER (J2)
