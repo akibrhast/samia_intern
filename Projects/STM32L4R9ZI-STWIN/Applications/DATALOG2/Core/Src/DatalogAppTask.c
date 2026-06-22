@@ -451,6 +451,17 @@ sys_error_code_t DatalogAppTask_vtblDoEnterPowerMode(AManagedTask *_this, const 
       /* Reactivate SD interface */
       IStream_enable((IStream_t *) p_obj->filex_device);
     }
+    else if (interface == LOG_CTRL_MODE_BLE) /*stop command from BLE*/
+    {
+      /* Stop the BLE data streaming interface */
+      IStream_stop((IStream_t *) p_obj->ble_device);
+      DatalogAppTask_UpdateStreamingStatus(p_obj, (IStream_t *) p_obj->ble_device, FALSE, interface);
+      p_obj->datalog_model->log_controller_model.interface = -1;
+
+      /* Reactivate USB and SD interfaces */
+      IStream_enable((IStream_t *) p_obj->usbx_device);
+      IStream_enable((IStream_t *) p_obj->filex_device);
+    }
     SysTsStop(SysGetTimestampSrv());
   }
   if (NewPowerMode == E_POWER_MODE_SENSORS_ACTIVE)
@@ -836,6 +847,12 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
     /* Reset sd_failed status in log_controller */
     p_obj->datalog_model->log_controller_model.sd_failed = false;
 
+    if ((interface == LOG_CTRL_MODE_SD) && !SD_IsDetected())
+    {
+      interface = LOG_CTRL_MODE_BLE;
+      p_obj->datalog_model->log_controller_model.interface = interface;
+    }
+
     p_obj->datalog_model->acquisition_info_model.interface = interface;
 
     char *responseJSON;
@@ -904,6 +921,32 @@ uint8_t DatalogAppTask_start_vtbl(int32_t interface)
       };
       SysPostPowerModeEvent(evt);
     }
+    else if (interface == LOG_CTRL_MODE_BLE) /*Start live stream on BLE*/
+    {
+      IStream_disable((IStream_t *) p_obj->usbx_device);
+      IStream_disable((IStream_t *) p_obj->filex_device);
+
+      if (IStream_start((IStream_t *) p_obj->ble_device, 0) != SYS_NO_ERROR_CODE)
+      {
+        message = "Error: BLE acquisition start failure";
+        PnPLSerializeCommandResponse(&responseJSON, &size, 0, message, false);
+        DatalogApp_Task_command_response_cb(responseJSON, size);
+        return 1;
+      }
+
+      PnPLSerializeCommandResponse(&responseJSON, &size, 0, "", true);
+      DatalogApp_Task_command_response_cb(responseJSON, size);
+
+      DatalogAppTask_UpdateStreamingStatus(p_obj, (IStream_t *) p_obj->ble_device, TRUE, interface);
+      p_obj->datalog_model->log_controller_model.status = TRUE;
+
+      /* generate the system event.*/
+      SysEvent evt =
+      {
+        .nRawEvent = SYS_PM_MAKE_EVENT(SYS_PM_EVT_SRC_DATALOG, 0)
+      };
+      SysPostPowerModeEvent(evt);
+    }
     else
     {
       /*Start command from other interfaces: not implemented*/
@@ -932,6 +975,11 @@ uint8_t DatalogAppTask_stop_vtbl(void)
       p_obj->datalog_model->log_controller_model.status = FALSE;
     }
     else if (interface == LOG_CTRL_MODE_USB) /*stop command from USB*/
+    {
+      /* Update the status */
+      p_obj->datalog_model->log_controller_model.status = FALSE;
+    }
+    else if (interface == LOG_CTRL_MODE_BLE) /*stop command from BLE*/
     {
       /* Update the status */
       p_obj->datalog_model->log_controller_model.status = FALSE;
