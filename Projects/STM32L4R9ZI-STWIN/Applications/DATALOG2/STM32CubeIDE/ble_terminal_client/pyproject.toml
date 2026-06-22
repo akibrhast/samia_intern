@@ -1,0 +1,16 @@
+[project]
+name = "st-ble-terminal"
+version = "0.1.0"
+description = "Terminal BLE client for ST FP-SNS-DATALOG2 PnPL and Raw PnPL streams."
+requires-python = ">=3.10"
+dependencies = [
+  "bleak>=0.22.0",
+]
+
+[project.scripts]
+st-ble-terminal = "st_ble_terminal.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
