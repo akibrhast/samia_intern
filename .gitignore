@@ -1,0 +1,16 @@
+# macOS filesystem metadata
+.DS_Store
+
+# STM32CubeIDE local workspace/project settings
+**/STM32CubeIDE/.settings/
+
+# STM32CubeIDE generated build outputs
+**/STM32CubeIDE/Debug/
+**/STM32CubeIDE/Release/
+
+# Python local environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
