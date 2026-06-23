@@ -3,8 +3,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from bleak import BleakClient
-
 from .client import STBleTerminalClient, scan_devices
 
 
@@ -134,7 +132,7 @@ async def run() -> None:
 
     client = STBleTerminalClient(device, mtu=args.mtu)
     if args.dump_services:
-        client.client = BleakClient(device)
+        client.client = client._new_client()
         await client.client.connect()
         try:
             await client.dump_services()

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 PNPL_UUID = "0000001b-0002-11e1-ac36-0002a5d5c51b"
 RAW_PNPL_UUID = "00000023-0002-11e1-ac36-0002a5d5c51b"
+FEATURES_SERVICE_UUID = "00000000-0001-11e1-9ab4-0002a5d5c51b"
 
 
 @dataclass
@@ -103,4 +104,3 @@ class DataTransporter:
 
 def split_write_frames(data: bytes, mtu: int) -> list[bytes]:
     return [data[index : index + mtu] for index in range(0, len(data), mtu)]
-

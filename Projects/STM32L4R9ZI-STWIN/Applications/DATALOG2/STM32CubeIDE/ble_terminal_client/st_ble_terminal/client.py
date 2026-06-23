@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import datetime
 from typing import Any, Iterable
 
@@ -20,7 +21,7 @@ from .pnpl import (
     parse_components,
     parse_json_payload,
 )
-from .protocol import PNPL_UUID, RAW_PNPL_UUID, DataTransporter, split_write_frames
+from .protocol import FEATURES_SERVICE_UUID, PNPL_UUID, RAW_PNPL_UUID, DataTransporter, split_write_frames
 
 
 class STBleTerminalClient:
@@ -38,7 +39,7 @@ class STBleTerminalClient:
         self._chars: dict[str, Any] = {}
 
     async def connect(self) -> None:
-        self.client = BleakClient(self.device, disconnected_callback=self._on_disconnect)
+        self.client = self._new_client()
         await self.client.connect()
         self.connected_event.set()
         await self._subscribe()
@@ -67,7 +68,7 @@ class STBleTerminalClient:
         self.connected_event.clear()
         while True:
             try:
-                self.client = BleakClient(self.device, disconnected_callback=self._on_disconnect)
+                self.client = self._new_client()
                 await self.client.connect()
                 self.connected_event.set()
                 await self._subscribe()
@@ -171,6 +172,15 @@ class STBleTerminalClient:
         if self.client is None or not self.client.is_connected:
             raise RuntimeError("not connected")
         return self.client
+
+    def _new_client(self) -> BleakClient:
+        kwargs: dict[str, Any] = {
+            "disconnected_callback": self._on_disconnect,
+            "services": [FEATURES_SERVICE_UUID],
+        }
+        if sys.platform == "win32":
+            kwargs["winrt"] = {"use_cached_services": False}
+        return BleakClient(self.device, **kwargs)
 
     def _require_char(self, uuid: str) -> Any:
         char = self._chars.get(uuid)
