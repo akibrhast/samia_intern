@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 
+from bleak import BleakClient
+
 from .client import STBleTerminalClient, scan_devices
 
 
@@ -122,6 +124,7 @@ async def run() -> None:
     parser.add_argument("--address", help="connect directly to a BLE address/UUID")
     parser.add_argument("--scan-timeout", type=float, default=6.0)
     parser.add_argument("--mtu", type=int, default=20, help="ST DataTransporter write chunk size")
+    parser.add_argument("--dump-services", action="store_true", help="connect and print discovered GATT services")
     args = parser.parse_args()
 
     if args.address:
@@ -130,6 +133,15 @@ async def run() -> None:
         device = await choose_device(args.scan_timeout)
 
     client = STBleTerminalClient(device, mtu=args.mtu)
+    if args.dump_services:
+        client.client = BleakClient(device)
+        await client.client.connect()
+        try:
+            await client.dump_services()
+        finally:
+            await client.client.disconnect()
+        return
+
     await client.connect()
     await command_loop(client)
 

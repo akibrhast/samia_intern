@@ -44,6 +44,14 @@ class STBleTerminalClient:
         await self.request_status()
         print(f"connected: {self._device_label()}")
 
+    async def dump_services(self) -> None:
+        client = self._require_client()
+        for service in client.services:
+            print(f"service {service.uuid} {service.description}")
+            for char in service.characteristics:
+                properties = ",".join(char.properties)
+                print(f"  char {char.uuid} props={properties} handle={char.handle}")
+
     async def disconnect(self) -> None:
         self._wanted_streaming = False
         if self.client and self.client.is_connected:
@@ -101,6 +109,8 @@ class STBleTerminalClient:
         services = client.services
         uuids = {char.uuid.lower() for service in services for char in service.characteristics}
         if PNPL_UUID not in uuids:
+            print("discovered GATT characteristics:")
+            await self.dump_services()
             raise RuntimeError(f"PnPL characteristic not found: {PNPL_UUID}")
         await client.start_notify(PNPL_UUID, self._on_pnpl_notify)
         if RAW_PNPL_UUID in uuids:
