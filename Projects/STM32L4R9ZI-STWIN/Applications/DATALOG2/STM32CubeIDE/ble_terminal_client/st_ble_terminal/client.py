@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -35,6 +35,7 @@ class STBleTerminalClient:
         self.connected_event = asyncio.Event()
         self._reconnect_task: asyncio.Task[None] | None = None
         self._wanted_streaming = False
+        self._chars: dict[str, Any] = {}
 
     async def connect(self) -> None:
         self.client = BleakClient(self.device, disconnected_callback=self._on_disconnect)
@@ -46,11 +47,16 @@ class STBleTerminalClient:
 
     async def dump_services(self) -> None:
         client = self._require_client()
-        for service in client.services:
+        services = await self._get_services()
+        found = False
+        for service in services:
+            found = True
             print(f"service {service.uuid} {service.description}")
             for char in service.characteristics:
                 properties = ",".join(char.properties)
                 print(f"  char {char.uuid} props={properties} handle={char.handle}")
+        if not found:
+            print("  no GATT services discovered")
 
     async def disconnect(self) -> None:
         self._wanted_streaming = False
@@ -98,23 +104,29 @@ class STBleTerminalClient:
 
     async def send_json(self, json_text: str) -> None:
         client = self._require_client()
+        pnpl_char = self._require_char(PNPL_UUID)
         framed = self.transporter.encapsulate_json(json_text)
         for frame in split_write_frames(framed, self.mtu):
-            await client.write_gatt_char(PNPL_UUID, frame, response=False)
+            await client.write_gatt_char(pnpl_char, frame, response=False)
             await asyncio.sleep(0.1)
         print(f"> {json_text}")
 
     async def _subscribe(self) -> None:
         client = self._require_client()
-        services = client.services
-        uuids = {char.uuid.lower() for service in services for char in service.characteristics}
+        services = await self._get_services()
+        self._chars = {
+            char.uuid.lower(): char
+            for service in services
+            for char in service.characteristics
+        }
+        uuids = set(self._chars)
         if PNPL_UUID not in uuids:
             print("discovered GATT characteristics:")
             await self.dump_services()
             raise RuntimeError(f"PnPL characteristic not found: {PNPL_UUID}")
-        await client.start_notify(PNPL_UUID, self._on_pnpl_notify)
+        await client.start_notify(self._chars[PNPL_UUID], self._on_pnpl_notify)
         if RAW_PNPL_UUID in uuids:
-            await client.start_notify(RAW_PNPL_UUID, self._on_raw_notify)
+            await client.start_notify(self._chars[RAW_PNPL_UUID], self._on_raw_notify)
         else:
             print(f"warning: Raw PnPL characteristic not found: {RAW_PNPL_UUID}")
 
@@ -159,6 +171,27 @@ class STBleTerminalClient:
         if self.client is None or not self.client.is_connected:
             raise RuntimeError("not connected")
         return self.client
+
+    def _require_char(self, uuid: str) -> Any:
+        char = self._chars.get(uuid)
+        if char is None:
+            raise RuntimeError(f"characteristic not discovered: {uuid}")
+        return char
+
+    async def _get_services(self) -> Iterable[Any]:
+        client = self._require_client()
+        last_services: Iterable[Any] = []
+        for _ in range(5):
+            get_services = getattr(client, "get_services", None)
+            if callable(get_services):
+                services = await get_services()
+            else:
+                services = client.services
+            last_services = services
+            if any(service.characteristics for service in services):
+                return services
+            await asyncio.sleep(0.5)
+        return last_services
 
     def _device_label(self) -> str:
         name = getattr(self.device, "name", None) or "unknown"

@@ -546,7 +546,7 @@ static sys_error_code_t UtilTaskExecuteStepState1(AManagedTask *_this)
       else if (msg.nCmdID == UTIL_CMD_ID_DATALOG_LED)
       {
         led_count_state1++;
-        if (led_count_state1 == 16)
+        if (led_count_state1 == 1)
         {
           led_count_state1 = 0;
           if (p_obj->p_mx_led1_drv_cfg != NULL)
